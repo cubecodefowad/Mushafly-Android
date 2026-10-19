@@ -52,6 +52,25 @@ what has not been verified.
 
 ## Build an installable APK
 
+### CI-built APK (already produced)
+
+[`.github/workflows/android-apk.yml`](.github/workflows/android-apk.yml) verifies
+the data, types and tests, prebuilds the native project and builds a release APK
+on every push to `main` (or from **Actions → Android APK → Run workflow**).
+
+An APK for commit `7768b67` was built successfully:
+
+- Run: <https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39307503501>
+- Artifact: **mushafly-apk** (44 MB zip, containing `mushafly.apk`), downloadable
+  from the run page while the artifact is retained.
+- Signing: the CI release build uses the generated debug keystore. It installs
+  on a phone for testing, but it is **not** a Play Store signing identity.
+
+Download the artifact, unzip it, and install `mushafly.apk` using the steps
+below.
+
+### EAS build
+
 The `preview` profile in [`eas.json`](eas.json) is configured for APK output
 (`distribution: internal`, `buildType: apk`), not an AAB.
 
@@ -191,10 +210,10 @@ the interface.
 
 ## Known limitations
 
-- **No APK has been built in this environment.** There is no Android SDK, JDK
-  or EAS login on the machine used to write this code. The JavaScript bundle and
-  every asset export successfully, but the APK itself must be produced with the
-  commands above.
+- The APK was built in GitHub Actions, not on the machine used to write the
+  code (which has no Android SDK, JDK or EAS login). It has not yet been
+  installed on a physical device by this project, so device-level behaviour is
+  still unverified. The CI APK uses debug signing and is for testing only.
 - Recitation audio is **streamed**, not bundled. Offline reading is complete;
   offline audio is not offered.
 - 147 verses are intentionally rendered without Tajweed colour because the

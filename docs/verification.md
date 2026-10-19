@@ -27,10 +27,14 @@ checkout present, all 6,348 rows are compared byte for byte against
 | `npm run data:validate` | pass — pinned hash, 114 surahs, 6,236 numbered verses, 112 Bismillah rows, 15 sajdah refs, 60,841 Tajweed ranges, 147 intentionally plain verses, 1,446-glyph font covers every displayed Arabic code point, 6,348 rows byte-compared with the source |
 | `npm test` | pass — 9 suites, 49 tests |
 | `npx expo export --platform android` | pass — Hermes bundle 4.6 MB, database asset 18.5 MB present in the export |
-| APK build | **not run** — no JDK, Android SDK or EAS login in this environment |
+| APK build | pass in GitHub Actions (run [39307503501](https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39307503501), commit `7768b67`): artifact `mushafly-apk`, 44 MB zip, release APK built with the generated debug keystore |
+| APK on a device | **not run** — no device or emulator was available to this workspace |
 
-The export is not a substitute for a device test. A later change to native
-configuration, a font, or a screen can break the APK without breaking the export.
+The export is not a substitute for a device test, and neither is the APK build.
+Both prove that the project compiles and packages; only an install-and-read pass
+can show that the database copy, audio session and layout behave on Android. The
+CI build also signs the release with the debug keystore, so it is a test
+artefact rather than a Play-ready binary.
 
 ## Test coverage
 
@@ -147,8 +151,8 @@ with the source commit, license and translation credits.
 
 ## Known limitations
 
-- No APK artefact was produced here (no Android SDK / JDK / EAS login). The
-  exact build commands and the required build profiles are in the README.
+- The APK was produced by CI, not by this workspace, and has not been installed
+  on a device. Its signing identity is the debug keystore.
 - Audio is streamed from the pinned source; the app does not claim offline
   recitation.
 - 147 verses have unusable upstream Tajweed annotation and are shown plain.

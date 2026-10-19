@@ -1,0 +1,8 @@
+.git
+.expo
+dist
+coverage
+test-results
+playwright-report
+node_modules
+*.log

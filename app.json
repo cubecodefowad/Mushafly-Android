@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "Mushafly",
+    "slug": "mushafly",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "mushafly",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#faf8f3",
+    "primaryColor": "#426b55",
+    "android": {
+      "package": "com.mushafly.android",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#faf8f3",
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "monochromeImage": "./assets/images/monochrome-icon.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": []
+    },
+    "ios": {
+      "bundleIdentifier": "com.mushafly.android",
+      "supportsTablet": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#faf8f3",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 150,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#171916",
+            "image": "./assets/images/splash-icon.png"
+          }
+        }
+      ],
+      "expo-sqlite",
+      [
+        "expo-audio",
+        {
+          "enableBackgroundPlayback": false,
+          "recordAudioAndroid": false,
+          "microphonePermission": false
+        }
+      ],
+      "expo-navigation-bar"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

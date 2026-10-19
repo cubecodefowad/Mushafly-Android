@@ -1,0 +1,160 @@
+# Verification record
+
+This file records what was actually checked, how, and what remains unverified.
+It is not a claim that the Quran has been independently verified.
+
+## How to reproduce
+
+```bash
+npm install
+npm run typecheck
+npm run data:validate
+npm test
+npx expo export --platform android
+```
+
+`npm run data:validate` needs Node 20+ for `node:sqlite`. It reports
+`source diff skipped` when the Mushafly web checkout is not present next to this
+directory; the SHA-256 of the shipped database is still checked. With the web
+checkout present, all 6,348 rows are compared byte for byte against
+`public/quran`.
+
+## Results (last run in this workspace)
+
+| Check | Result |
+| --- | --- |
+| `npx tsc --noEmit` | pass, no errors |
+| `npm run data:validate` | pass — pinned hash, 114 surahs, 6,236 numbered verses, 112 Bismillah rows, 15 sajdah refs, 60,841 Tajweed ranges, 147 intentionally plain verses, 1,446-glyph font covers every displayed Arabic code point, 6,348 rows byte-compared with the source |
+| `npm test` | pass — 9 suites, 49 tests |
+| `npx expo export --platform android` | pass — Hermes bundle 4.6 MB, database asset 18.5 MB present in the export |
+| APK build | **not run** — no JDK, Android SDK or EAS login in this environment |
+
+The export is not a substitute for a device test. A later change to native
+configuration, a font, or a screen can break the APK without breaking the export.
+
+## Test coverage
+
+Unit tests:
+
+- `normalize` removes diacritics and Quranic annotation signs only in the search
+  copy, folds letter variants, folds English diacritics and punctuation,
+  collapses whitespace, and maps each normalized character back to its source
+  index. Excerpts are slices of the original string.
+- `renderTajweed` returns segments that join back to the source exactly for
+  valid ranges; it refuses unknown rules, overlaps, out-of-bounds ranges and
+  missing annotations instead of guessing; it accounts for the single U+FEFF
+  artifact without deleting it; the sajdah character survives at the end of
+  7:206.
+- `parseSettings` clamps sizes, rejects bad themes and translations, ignores
+  unknown keys and falls back to defaults for malformed storage.
+- Reference helpers produce stable `surah:verse` keys and safe timestamps.
+- The sign reference documents the sajdah sign, and `SAJDAH_VERSES` is exactly
+  the 15 unique, ordered references.
+
+Component tests (`@testing-library/react-native`):
+
+- `ArabicText` renders the exact source string with Tajweed off and on, keeps
+  U+06E9 at the end, and sets `writingDirection: rtl`, right alignment, the
+  Amiri Quran family and `accessibilityLanguage: "ar"`.
+- `SajdahBadge` shows the U+06E9 glyph plus the word "Sajdah" and an accessible
+  label.
+
+Integration tests:
+
+- Runs the release data validator as a child process, so `npm test` cannot pass
+  against a stale, corrupt or unpublished database.
+- Opens the shipped SQLite file with Node's own binding and runs the real
+  repository queries through the same `getFirstAsync`/`getAllAsync` shape
+  `expo-sqlite` provides. It checks all 114 surahs, the Bismillah row, verse
+  order, 7:206's sajdah flag and character, Tajweed segments joining back to the
+  source for seven surahs, the single BOM at 1:1, 15 SQL-derived sajdah
+  references, Arabic and English search excerpts, bookmark previews, and the
+  pinned audio URL.
+
+Not covered by automated tests: the SQLite copy-on-first-launch path, audio
+lifecycle on a real device, gesture and scroll performance, safe areas and
+cutouts, and Android process death. These need an emulator or phone.
+
+## Sajdah investigation
+
+The report carried over from the web app was "a sajdah mark does not appear".
+The investigation traced the mark through the data, the fonts and both readers.
+
+1. **Source data.** `semarketir/quranjson` at the pinned commit contains U+06E9
+   (`۩`) in the Arabic string of exactly 15 verses. 7:206 ends with
+   `…وَلَهُۥ يَسْجُدُونَ ۩` (space before the sign). No other verse contains it.
+2. **Import.** `scripts/import-quran-data.mjs` copies the string unchanged and
+   derives `has_sajdah` from the presence of U+06E9. The validator fails if the
+   column and the character ever disagree, so a future import cannot silently
+   lose the mark.
+3. **Fonts.** The bundled `AmiriQuran-Regular.ttf` has a real glyph for U+06E9
+   (advance 671/1000 em, ink from −408 to +740 units). The web WOFF2 subset has
+   the same glyph. Font coverage was therefore not the cause.
+4. **Web rendering.** A headless Chrome inspection of `/surah/7/` at 900 px and
+   at 390 px found the character in the DOM, a client rect inside the page, and
+   painted ink in that rect at 3× device scale. The web reader does paint the
+   mark at the end of the verse; it has no badge and no textual indication, so
+   the sign is easy to miss and the web app has no separate sajdah UI.
+5. **Mobile rendering.** The reader displays the same source characters, plus a
+   labelled Sajdah badge in the verse's meta row. The sign therefore has both its
+   source position and a discoverable interface marker. It does not depend on
+   colour alone, and it is not affected by the Tajweed toggle.
+
+Conclusion: the data and the bundled fonts are sound; the web reader renders the
+glyph but provides no persistent, labelled indicator. The mobile build addresses
+that by deriving the badge from the source character itself, keeping the
+character in the Arabic text, and guarding both cases in tests. A total absence
+of the glyph could not be reproduced in the web app at the tested widths.
+
+Manual check still required: compare the 15 sajdah positions and the 7:206
+ending against a printed Madani Mushaf. The references are listed in
+`src/features/quran/text-marks.ts`; 7:206 is the last verse of the surah.
+
+## Data integrity
+
+- Pinned source commit and database SHA-256 are recorded in
+  `data/source-lock.json`; the validator recomputes the hash of the shipped file.
+- Surah numbering is contiguous, verse sequences have no gaps, and every verse
+  is within its surah's count.
+- Translation, commentary and Tajweed records are aligned by the source's own
+  `verse_N` keys; the importer fails on a count mismatch rather than shifting
+  rows.
+- Search columns are verified to be the output of `normalize()` applied to the
+  stored source strings. They are never used for display.
+- Audio file names and URLs are rebuilt from the pinned commit and checked for
+  every row.
+- The font is checked glyph by glyph against every Arabic code point in the
+  database, including all nine pause/structure/prostration signs.
+
+## Accuracy disclaimer
+
+> We have taken great care to preserve the accuracy and integrity of the Quranic
+> text and the translations presented in this application. The Quranic text and
+> associated data are sourced from the project's documented sources, and we
+> strive to display the content faithfully.
+>
+> Despite these efforts, errors or technical issues may occasionally occur. If
+> you notice a possible discrepancy in the Quranic text, translation,
+> recitation, or other content, please contact us so we can investigate it
+> carefully. We appreciate your help in identifying potential issues and
+> improving the application.
+
+Contact: **hello@mushafly.com** (the web project's published address) or
+<https://github.com/cubecodefowad/Mushafly-Android/issues>.
+
+The text is shown in the app under **About → Accuracy and sources**, together
+with the source commit, license and translation credits.
+
+## Known limitations
+
+- No APK artefact was produced here (no Android SDK / JDK / EAS login). The
+  exact build commands and the required build profiles are in the README.
+- Audio is streamed from the pinned source; the app does not claim offline
+  recitation.
+- 147 verses have unusable upstream Tajweed annotation and are shown plain.
+- The single U+FEFF at the start of 1:1 is preserved exactly as the source
+  stores it. It has no visible width and no Quranic meaning.
+- Device-level checks (startup time, scroll smoothness, memory, APK size,
+  cutouts, audio interruptions) have not been performed.
+- The app has not been compared side by side with a printed Mushaf by a
+  qualified reviewer.

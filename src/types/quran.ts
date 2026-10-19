@@ -1,0 +1,131 @@
+export type TranslationLanguage = "en" | "id" | "ar";
+
+export type TranslationInfo = {
+  languageCode: TranslationLanguage;
+  id: string;
+  label: string;
+  name: string;
+  translator: string;
+  source: string;
+  lastUpdate?: string;
+  direction: "ltr" | "rtl";
+};
+
+export type JuzRange = {
+  index: string;
+  verse: { start: string; end: string };
+};
+
+export type SurahMeta = {
+  number: number;
+  name: string;
+  arabicName: string;
+  verseCount: number;
+  place: string;
+  type: string;
+  bismillah: boolean;
+  juz: JuzRange[];
+};
+
+export type TajweedReason =
+  | "out-of-bounds"
+  | "overlap"
+  | "unknown-rule"
+  | "alignment"
+  | "missing-annotations";
+
+export type RenderSegment = {
+  text: string;
+  rule?: string;
+};
+
+export type TajweedRender = {
+  status: "ok" | "none" | "unavailable";
+  reason?: TajweedReason;
+  segments: RenderSegment[];
+  appliedRules: string[];
+};
+
+export type AudioReference = {
+  file: string;
+  url: string;
+  size: number;
+};
+
+export type Verse = {
+  surahNumber: number;
+  /** 0 is the unnumbered Bismillah row, where the source supplies one. */
+  number: number;
+  key: string;
+  arabic: string;
+  translations: Record<TranslationLanguage, string | null>;
+  tajweed: TajweedRender;
+  hasSajdah: boolean;
+  audio: AudioReference | null;
+  audioUnavailableReason?: string;
+};
+
+export type Surah = {
+  meta: SurahMeta;
+  bismillah: Verse | null;
+  verses: Verse[];
+  prev: SurahMeta | null;
+  next: SurahMeta | null;
+  tajweedRules: string[];
+  unavailableTajweedCount: number;
+};
+
+export type SourceInfo = {
+  repository: string;
+  commit: string;
+  license: string;
+  translations: TranslationInfo[];
+  audio: {
+    reciter: string;
+    source: string;
+    licenseUrl: string;
+    bitrate?: string;
+  };
+  counts: {
+    surahs: number;
+    verses: number;
+    arabicEntries: number;
+    translationRows: Record<string, number>;
+    tajweedSegments: number;
+    bismillahVerses: number;
+  };
+};
+
+export type ThemePreference = "system" | "light" | "dark";
+
+export type ReaderSettings = {
+  theme: ThemePreference;
+  arabicSize: number;
+  translationSize: number;
+  showTranslation: boolean;
+  tajweed: boolean;
+  translation: TranslationLanguage;
+  autoAdvanceAudio: boolean;
+};
+
+export type BookmarkRecord = {
+  surahNumber: number;
+  verseNumber: number;
+  createdAt: string;
+};
+
+export type LastRead = {
+  surahNumber: number;
+  verseNumber: number;
+  updatedAt: string;
+};
+
+export type SearchResult = {
+  surahNumber: number;
+  verseNumber: number;
+  surahName: string;
+  surahArabicName: string;
+  arabic: string;
+  translation: string | null;
+  matchField: "arabic" | "translation";
+};

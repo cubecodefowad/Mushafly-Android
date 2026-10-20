@@ -28,7 +28,7 @@ checkout present, all 6,348 rows are compared byte for byte against
 | `npm test` | pass — 10 suites, 63 tests |
 | `npx expo export --platform android` | pass — Hermes bundle 4.7 MB, 61.5 MB database asset present in the export |
 | `npx expo-doctor` | pass — 20/20 checks |
-| APK build | pass in GitHub Actions (run [39307503501](https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39307503501), commit `7768b67`): artifact `mushafly-apk`, 44 MB zip, release APK built with the generated debug keystore |
+| APK build | pass in GitHub Actions (run [39474437023](https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39474437023), commit `244f5e7`, version 1.1.0): artifact `mushafly-apk`, 60 MB zip, release APK built with the generated debug keystore; every step including `npm run verify` succeeded |
 | APK on a device | **not run** — no device or emulator was available to this workspace |
 
 The export is not a substitute for a device test, and neither is the APK build.

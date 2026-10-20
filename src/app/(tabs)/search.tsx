@@ -9,24 +9,27 @@ import {
   View,
   type ListRenderItemInfo,
 } from "react-native";
-import { AppHeader } from "../components/ui/AppHeader";
-import { AppText } from "../components/ui/AppText";
-import { Card } from "../components/ui/Card";
-import { EmptyState } from "../components/ui/EmptyState";
-import { Icon } from "../components/ui/Icon";
-import { Screen } from "../components/ui/Screen";
-import { SearchResultItem } from "../components/search/SearchResultItem";
-import { useSearch } from "../features/search/useSearch";
-import { useSettings } from "../features/settings/SettingsProvider";
-import { useTheme } from "../theme/ThemeProvider";
-import type { SearchResult } from "../types/quran";
-import { surahHref } from "../utils/reference";
+import { AppHeader } from "../../components/ui/AppHeader";
+import { AppText } from "../../components/ui/AppText";
+import { Card } from "../../components/ui/Card";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { Icon } from "../../components/ui/Icon";
+import { Screen } from "../../components/ui/Screen";
+import { SearchResultItem } from "../../components/search/SearchResultItem";
+import { useSearch } from "../../features/search/useSearch";
+import { translationInfo, translationLabel } from "../../features/settings/settings";
+import { useSettings } from "../../features/settings/SettingsProvider";
+import { useTheme } from "../../theme/ThemeProvider";
+import type { SearchResult } from "../../types/quran";
+import { surahHref } from "../../utils/reference";
 
 export default function SearchScreen() {
   const { colors } = useTheme();
   const { settings } = useSettings();
   const [query, setQuery] = useState("");
   const search = useSearch(query, settings.translation);
+  const dataset = translationInfo(settings.translation);
+  const datasetName = translationLabel(dataset);
   const trimmed = query.trim();
 
   const headerStatus =
@@ -53,13 +56,13 @@ export default function SearchScreen() {
             value={query}
             onChangeText={setQuery}
             autoFocus
-            placeholder="Arabic or English"
+            placeholder={`Arabic or ${dataset.language ?? dataset.label}`}
             placeholderTextColor={colors.muted}
             style={[styles.input, { color: colors.ink }]}
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="search"
-            accessibilityLabel="Search the Quran text and English translation"
+            accessibilityLabel={`Search the Arabic text and the ${datasetName} translation`}
           />
           {query ? (
             <Pressable
@@ -103,10 +106,11 @@ export default function SearchScreen() {
               <Card>
                 <AppText variant="heading">Search the whole Mushaf</AppText>
                 <AppText tone="muted" style={styles.introText}>
-                  Search the Arabic source text and the English Itani translation.
-                  Arabic matching ignores diacritics, vowel marks and Quranic
-                  annotation signs only in the search copy; the reader always
-                  displays the exact source string.
+                  Verses are matched in the Arabic source and in the selected
+                  translation, {datasetName}. Arabic matching ignores diacritics,
+                  vowel marks and Quranic annotation signs only in the search copy;
+                  the reader always displays the exact source string. Change the
+                  dataset in Settings to search another language.
                 </AppText>
                 <AppText variant="meta" tone="muted" style={styles.suggestLabel}>
                   Try
@@ -129,9 +133,9 @@ export default function SearchScreen() {
                 </View>
               </Card>
               <AppText variant="caption" tone="muted" style={styles.normalization}>
-                Type at least two characters. English matching is case-insensitive
-                and ignores accent marks and punctuation. Transliteration search is
-                not available because the pinned source supplies no transliteration
+                Type at least two characters. Matching is case-insensitive and
+                ignores accent marks and punctuation. Transliteration search is not
+                available because the pinned source supplies no transliteration
                 field.
               </AppText>
             </View>
@@ -147,7 +151,7 @@ export default function SearchScreen() {
             <EmptyState
               icon="search-outline"
               title="No matches"
-              body={`Nothing in the Arabic text or English translation matches “${trimmed}”. Try a shorter word or a different spelling.`}
+              body={`Nothing in the Arabic text or the ${datasetName} translation matches “${trimmed}”. Try a shorter word, another dataset in Settings, or a different spelling.`}
             />
           ) : (
             <View style={styles.center}>

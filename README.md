@@ -5,10 +5,12 @@ is the mobile companion to the [Mushafly web reader](https://github.com/cubecode
 and keeps the same source-faithful data, editorial light/dark themes and
 Tajweed rules. It is a real React Native app — not a WebView around the site.
 
-The app ships with the complete Quran, English / Indonesian translations and an
-Arabic commentary inside a bundled SQLite database, so reading, search,
-bookmarks and settings work with no network connection. Only recitation audio
-and the issue-reporting link need the internet.
+The app ships with the complete Quran and 30 translation datasets across 17
+languages — English, Indonesian, Urdu, Arabic commentary, French, Spanish,
+German, Turkish, Bengali, Persian, Russian, Malay, Hindi, Portuguese, Swedish,
+Italian and Swahili — inside a bundled SQLite database. Reading, search,
+bookmarks, settings and every reference page work with no network connection.
+Only recitation audio and external links need the internet.
 
 ## Requirements
 
@@ -126,7 +128,7 @@ Everything the reader displays comes from the pinned runtime tree of
 | Commit | `7ca6f46ec9a1a029cdb220c2531d509f4a5b5e98` |
 | Source license | MIT |
 | Runtime tree | `public/quran` (copied from the Mushafly web repository) |
-| Database | `assets/data/quran.db`, SHA-256 `8cdec835…a968aa2297` |
+| Database | `assets/data/quran.db`, 61.5 MiB, SHA-256 `27f4cb2c…416c984b` |
 | Arabic font | Amiri Quran, `assets/fonts/AmiriQuran-Regular.ttf`, OFL |
 | Audio | Streamed from the same pinned commit on `raw.githubusercontent.com` |
 
@@ -147,11 +149,14 @@ npm run data:build -- --update-lock
 npm run data:validate
 ```
 
-The importer copies every Arabic, translation and commentary string byte for
-byte. It derives two separate search columns with documented normalization; the
-displayed Arabic is never normalized, trimmed of diacritics, or rewritten. The
-database includes 6,348 Arabic rows (6,236 numbered verses plus 112 Bismillah
-rows), 60,841 Tajweed ranges, 15 sajdah references and 6,348 audio URLs.
+The importer copies every Arabic and translation string byte for byte from the
+web runtime tree, reading all 30 datasets from `public/quran/translation`. It
+derives one Arabic search column with documented normalization; the displayed
+Arabic is never normalized, trimmed of diacritics, or rewritten. The database
+includes 6,348 Arabic rows (6,236 numbered verses plus 112 Bismillah rows),
+187,304 translation rows, 60,841 Tajweed ranges, 15 sajdah references and 6,348
+audio URLs. Dataset keys are listed in `scripts/import-quran-data.mjs`; add one
+there and rerun the import to bundle another edition.
 
 ### Sajdah and Quranic marks
 
@@ -167,21 +172,32 @@ and 390px pixel checks, and why the mobile rendering is different.
 
 ## Translations and Tajweed
 
-- English: Talal Itani (Tanzil.net)
-- Indonesian: Indonesian Ministry of Religious Affairs (Tanzil.net)
-- Arabic commentary: Tafsir al-Muyassar (King Fahad Quran Complex)
+The website carries all 68 Tanzil/quranjson datasets. This app bundles 30 of
+them so the download stays reasonable while every major reading language is
+available offline. The picker in Settings groups them by language and is
+searchable by language, translator or edition: it shows the short edition name,
+translator and source, and the reader reloads in place without losing its
+position.
 
-Tajweed overlays colour source characters using the dataset's own ranges. Each
-overlay is reconstructed from slices of the original string and is rejected if
-the slices do not join back to it exactly, so switching Tajweed off cannot remove
-a character or a diacritic. If the upstream annotation is missing, out of bounds
-or overlapping (147 verses in this pin), that verse is shown as plain text and
+Search matches the Arabic source and the selected translation dataset. Matching
+is diacritic-insensitive for Arabic and works in every bundled script, including
+Bengali, Urdu, Persian and Russian; it is case- and accent-insensitive for Latin
+text.
+
+Tajweed colours are drawn from the dataset's own ranges, but a colour run is
+only allowed to begin at a word edge or after a letter that does not join
+forward. React Native's Android text engine shapes each nested text run on its
+own, so a run that begins inside a word disconnects the Arabic letters. The
+reader therefore colours the whole span the annotation touches rather than
+breaking the word, never alters the Arabic, and the validator checks every verse
+for the invariant. Where the upstream annotation is missing, out of bounds or
+overlapping (147 verses in this pin), the verse is shown as plain text and
 labelled; the app does not guess.
 
 ## Project structure
 
 ```
-src/app/              Expo Router screens ((tabs), surah/[number], search, about)
+src/app/              Expo Router screens ((tabs), surah/[number], tajweed, about, terms, privacy)
 src/components/       UI, Quran rows, audio bar, sheets
 src/features/quran/   repository, Tajweed, normalization, signs, hooks
 src/features/search/  full-dataset search hook
@@ -215,10 +231,18 @@ the interface.
   installed on a physical device by this project, so device-level behaviour is
   still unverified. The CI APK uses debug signing and is for testing only.
 - Recitation audio is **streamed**, not bundled. Offline reading is complete;
-  offline audio is not offered.
+  offline audio is not offered. Pressing play without a connection now shows an
+explicit message and a retry action instead of an endless spinner, and a stream
+that never loads fails after 12 seconds with the same kind of message.
+- Tajweed colour follows the annotation at word-span level where a rule begins
+  inside a joined word. This is deliberate: character-level nesting disconnects
+  Arabic letters on Android's new architecture.
 - 147 verses are intentionally rendered without Tajweed colour because the
   upstream annotation cannot be applied faithfully.
 - Search covers Arabic and the selected translation. Transliteration is not part
   of the source, so it is not searchable.
+- 30 of the website's 68 translation datasets are bundled. The remaining
+  editions can be added by extending the dataset list and rebuilding the
+  database; they are not downloaded at runtime.
 - The app has not yet been through a manual side-by-side comparison with a
   printed Mushaf, nor a performance pass on a low-end physical device.

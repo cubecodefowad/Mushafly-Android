@@ -2,6 +2,7 @@ import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useEffect, useState } from "react";
 import { Platform, Pressable, StyleSheet, ToastAndroid, View } from "react-native";
+import { translationInfo } from "../../features/settings/settings";
 import { useTheme } from "../../theme/ThemeProvider";
 import { BottomSheet } from "../ui/BottomSheet";
 import { AppText } from "../ui/AppText";
@@ -92,9 +93,9 @@ export function VerseActionsSheet({
 
   if (!verse) return null;
 
-  const translation = verse.translations[settings.translation];
-  const translateLabel =
-    settings.translation === "ar" ? "Arabic commentary" : "translation";
+  const translation = verse.translation;
+  const dataset = translationInfo(verse.translationLanguage);
+  const translateLabel = dataset.direction === "rtl" ? "Arabic commentary" : "translation";
 
   const copy = async (text: string | null, label: string) => {
     if (!text) return;
@@ -168,9 +169,7 @@ export function VerseActionsSheet({
         title={`Copy ${translateLabel}`}
         description={
           translation
-            ? settings.translation === "ar"
-              ? "Tafsir al-Muyassar, King Fahad Quran Complex"
-              : "The translation currently selected in settings"
+            ? `${dataset.shortName ?? dataset.name} · ${dataset.translator}`
             : "No text in this dataset for this verse"
         }
         onPress={() => void copy(translation, translateLabel)}

@@ -130,8 +130,14 @@ export default function HomeScreen() {
           <QuickLink
             icon="search-outline"
             title="Search"
-            subtitle="Arabic & English"
+            subtitle="Arabic & translations"
             onPress={() => router.push("/search")}
+          />
+          <QuickLink
+            icon="color-palette-outline"
+            title="Tajweed"
+            subtitle="Colours and marks"
+            onPress={() => router.push("/tajweed")}
           />
           <QuickLink
             icon="bookmark-outline"
@@ -166,9 +172,9 @@ export default function HomeScreen() {
           </AppText>
           <AppText variant="caption" tone="muted" style={styles.sourceText}>
             Arabic, Tajweed annotations and recitation: quranjson, pinned at{" "}
-            {SOURCE_INFO.commit.slice(0, 7)} (MIT). English: Talal Itani
-            (Tanzil.net). Indonesian: Indonesian Ministry of Religious Affairs
-            (Tanzil.net). Commentary: Tafsir al-Muyassar (alquran.cloud).
+            {SOURCE_INFO.commit.slice(0, 7)} (MIT). Translations and commentary:{" "}
+            {SOURCE_INFO.translations.length} datasets bundled from Tanzil.net and the
+            pinned source. The website carries the full Tanzil registry.
           </AppText>
           <Pressable
             onPress={() => router.push("/about")}
@@ -181,6 +187,31 @@ export default function HomeScreen() {
             </AppText>
             <Icon name="chevron-forward" size={15} color={colors.accent} />
           </Pressable>
+          <View style={styles.legalRow}>
+            {[
+              { label: "Terms", href: "/terms" as const },
+              { label: "Privacy", href: "/privacy" as const },
+              { label: "Tajweed guide", href: "/tajweed" as const },
+            ].map((entry) => (
+              <Pressable
+                key={entry.href}
+                onPress={() => router.push(entry.href)}
+                accessibilityRole="button"
+                accessibilityLabel={entry.label}
+                style={({ pressed }) => [
+                  styles.legalChip,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: pressed ? colors.surfaceMuted : "transparent",
+                  },
+                ]}
+              >
+                <AppText variant="caption" tone="muted">
+                  {entry.label}
+                </AppText>
+              </Pressable>
+            ))}
+          </View>
         </View>
       </ScrollView>
     </Screen>
@@ -267,5 +298,17 @@ const styles = StyleSheet.create({
     minHeight: 42,
     alignSelf: "flex-start",
     marginTop: 2,
+  },
+  legalRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 4,
+  },
+  legalChip: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
 });

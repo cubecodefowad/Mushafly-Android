@@ -114,6 +114,23 @@ export function normalize(text: string): string {
   return normalizeWithMap(text).text;
 }
 
+/**
+ * Matching copy for translations in any script. Unlike `normalize`, it does not
+ * restrict the output to Arabic and Latin letters: it removes marks and folds
+ * punctuation, but keeps the letters of Bengali, Urdu, Cyrillic, CJK and every
+ * other dataset language intact.
+ */
+export function normalizeForSearch(source: string): string {
+  return source
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06ed\ufeff]/g, "")
+    .toLowerCase()
+    .replace(/[\u0000-\u002f\u003a-\u0040\u005b-\u0060\u007b-\u00bf\u2000-\u206f\u2e00-\u2e7f]/g, " ")
+    .replace(/[\u060c\u061b\u061f\u0964\u0965]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** Build a short excerpt from the original string centred on the first match. */
 export function excerptFor(text: string, normalizedQuery: string, maxLength = 170): string {
   const { text: normalized, map } = normalizeWithMap(text);

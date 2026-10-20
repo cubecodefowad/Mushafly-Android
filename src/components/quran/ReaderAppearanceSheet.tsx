@@ -1,17 +1,19 @@
-import { View, StyleSheet } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { useSettings } from "../../features/settings/SettingsProvider";
 import {
   SETTINGS_LIMITS,
-  TRANSLATIONS,
   adjustSize,
+  translationInfo,
+  translationLabel,
 } from "../../features/settings/settings";
-import type { ThemePreference, TranslationLanguage } from "../../types/quran";
+import type { ThemePreference } from "../../types/quran";
 import { useTheme } from "../../theme/ThemeProvider";
 import { BottomSheet } from "../ui/BottomSheet";
 import { AppText } from "../ui/AppText";
 import { Segmented } from "../ui/Segmented";
 import { Stepper } from "../ui/Stepper";
 import { SwitchRow } from "../ui/SwitchRow";
+import { Icon } from "../ui/Icon";
 
 const THEME_OPTIONS: Array<{ value: ThemePreference; label: string }> = [
   { value: "system", label: "System" },
@@ -22,17 +24,15 @@ const THEME_OPTIONS: Array<{ value: ThemePreference; label: string }> = [
 export function ReaderAppearanceSheet({
   visible,
   onClose,
+  onOpenTranslation,
 }: {
   visible: boolean;
   onClose: () => void;
+  onOpenTranslation: () => void;
 }) {
   const { settings, update } = useSettings();
   const { colors } = useTheme();
-
-  const translationOptions = TRANSLATIONS.map((entry) => ({
-    value: entry.languageCode as TranslationLanguage,
-    label: entry.label,
-  }));
+  const dataset = translationInfo(settings.translation);
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Reading appearance">
@@ -119,15 +119,29 @@ export function ReaderAppearanceSheet({
       <AppText variant="meta" tone="muted" style={styles.topGap}>
         Translation
       </AppText>
-      <Segmented
-        options={translationOptions}
-        value={settings.translation}
-        onChange={(translation) => update({ translation })}
-        style={styles.control}
-      />
+      <Pressable
+        onPress={onOpenTranslation}
+        accessibilityRole="button"
+        accessibilityLabel={`Change translation. Currently ${translationLabel(dataset)}`}
+        style={({ pressed }) => [
+          styles.pickerRow,
+          {
+            borderColor: colors.border,
+            backgroundColor: pressed ? colors.surfaceMuted : colors.surface,
+          },
+        ]}
+      >
+        <View style={styles.pickerCopy}>
+          <AppText variant="label">{translationLabel(dataset)}</AppText>
+          <AppText variant="caption" tone="muted" numberOfLines={1}>
+            {dataset.language ?? dataset.label} · {dataset.translator}
+          </AppText>
+        </View>
+        <Icon name="chevron-forward" size={16} color={colors.muted} />
+      </Pressable>
       <AppText variant="caption" tone="muted" style={styles.footnote}>
-        Changes are saved automatically. Arabic commentary is Tafsir al-Muyassar
-        from the pinned source, not a verse translation.
+        Changes are saved automatically. Arabic datasets are commentaries (tafsir),
+        not verse translations.
       </AppText>
     </BottomSheet>
   );
@@ -143,6 +157,19 @@ const styles = StyleSheet.create({
   },
   topGap: {
     marginTop: 8,
+  },
+  pickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    marginTop: 8,
+  },
+  pickerCopy: {
+    flex: 1,
   },
   footnote: {
     marginTop: 14,

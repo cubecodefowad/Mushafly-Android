@@ -1,6 +1,30 @@
-import { excerptFor, normalize, normalizeWithMap } from "../../src/features/quran/normalize";
+import {
+  excerptFor,
+  normalize,
+  normalizeForSearch,
+  normalizeWithMap,
+} from "../../src/features/quran/normalize";
 
 const source = "بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ";
+
+describe("translation search normalization", () => {
+  it("keeps the letters of non-Latin scripts", () => {
+    expect(normalizeForSearch("اللہ اکبر")).toContain("اللہ");
+    expect(normalizeForSearch("আল্লাহ")).toContain("আল্লাহ");
+    expect(normalizeForSearch("Бог милостивый")).toContain("бог");
+    expect(normalizeForSearch("慈悲深い")).toBe("慈悲深い");
+  });
+
+  it("folds case, accents and punctuation", () => {
+    expect(normalizeForSearch("  The Most Merciful.  ")).toBe("the most merciful");
+    expect(normalizeForSearch("Café — déjà vu!")).toBe("cafe deja vu");
+    expect(normalizeForSearch("merciful، gracious")).toBe("merciful gracious");
+  });
+
+  it("removes Arabic diacritics without dropping the letters", () => {
+    expect(normalizeForSearch("ٱلرَّحْمَٰنِ")).toBe("ٱلرحمن");
+  });
+});
 
 describe("search normalization", () => {
   it("removes diacritics and Quranic annotation signs from the match copy", () => {

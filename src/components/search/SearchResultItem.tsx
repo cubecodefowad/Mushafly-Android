@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, View } from "react-native";
+import { translationInfo } from "../../features/settings/settings";
 import { useSettings } from "../../features/settings/SettingsProvider";
 import { useTheme } from "../../theme/ThemeProvider";
 import type { SearchResult } from "../../types/quran";
@@ -14,6 +15,7 @@ export function SearchResultItem({
 }) {
   const { colors, fonts } = useTheme();
   const { settings } = useSettings();
+  const translationIsRtl = translationInfo(settings.translation).direction === "rtl";
   return (
     <Pressable
       onPress={onPress}
@@ -68,11 +70,11 @@ export function SearchResultItem({
             styles.translation,
             {
               color: colors.muted,
-              fontFamily: settings.translation === "ar" ? fonts.arabic : fonts.serif,
+              fontFamily: translationIsRtl ? fonts.arabic : fonts.serif,
               fontSize: settings.translationSize,
               lineHeight: Math.round(settings.translationSize * 1.6),
-              textAlign: settings.translation === "ar" ? "right" : "left",
-              writingDirection: settings.translation === "ar" ? "rtl" : "ltr",
+              textAlign: translationIsRtl ? "right" : "left",
+              writingDirection: translationIsRtl ? "rtl" : "ltr",
             },
           ]}
         >

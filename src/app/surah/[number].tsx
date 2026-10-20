@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ReaderAppearanceSheet } from "../../components/quran/ReaderAppearanceSheet";
+import { TranslationPickerSheet } from "../../components/settings/TranslationPickerSheet";
 import { SurahFooter } from "../../components/quran/SurahFooter";
 import { SurahHeader } from "../../components/quran/SurahHeader";
 import { TajweedLegend } from "../../components/quran/TajweedLegend";
@@ -53,11 +54,15 @@ export default function SurahReaderScreen() {
   const { settings, update } = useSettings();
   const { lastRead, isBookmarked, toggleBookmark, saveReadingPosition } = useLibrary();
   const audio = useAudio();
-  const { data: surah, loading, error, retry } = useSurah(surahNumber ?? 0);
+  const { data: surah, loading, error, retry } = useSurah(
+    surahNumber ?? 0,
+    settings.translation,
+  );
 
   const [activeVerse, setActiveVerse] = useState(1);
   const [selected, setSelected] = useState<Verse | null>(null);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [translationOpen, setTranslationOpen] = useState(false);
   const listRef = useRef<FlatList<Verse>>(null);
   const lastSaved = useRef(0);
   const surahNumberRef = useRef(surahNumber ?? 0);
@@ -85,7 +90,7 @@ export default function SurahReaderScreen() {
       // `surah.verses` exactly.
       const index = surah.verses.findIndex((verse) => verse.number === verseNumber);
       if (index < 0) return;
-      listRef.current?.scrollToIndex({ index, animated, viewPosition: 0 });
+      listRef.current?.scrollToIndex({ index, animated, viewPosition: 0.18 });
     },
     [surah],
   );
@@ -97,7 +102,7 @@ export default function SurahReaderScreen() {
       listRef.current?.scrollToIndex({
         index: info.index,
         animated: false,
-        viewPosition: 0,
+        viewPosition: 0.18,
       });
     }, 140);
   }, []);
@@ -137,6 +142,22 @@ export default function SurahReaderScreen() {
       savePositionRef.current(surahNumberRef.current, visible.item.number);
     },
   ).current;
+
+  // Follow the recitation: when playback starts or advances, bring the verse
+  // being read to the upper part of the screen.
+  const audioSurahNumber = audio.current?.surah.number;
+  const audioVerseNumber = audio.current?.verse.number;
+  useEffect(() => {
+    if (!settings.followAudio) return;
+    if (!surah || audioSurahNumber !== surah.meta.number) return;
+    if (audioVerseNumber === undefined) return;
+    if (audioVerseNumber === 0) {
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+      return;
+    }
+    scrollToVerse(audioVerseNumber, true);
+    setActiveVerse(audioVerseNumber);
+  }, [audioSurahNumber, audioVerseNumber, scrollToVerse, settings.followAudio, surah]);
 
   const onTogglePlay = useCallback(
     (verse: Verse) => {
@@ -318,6 +339,12 @@ export default function SurahReaderScreen() {
         right={
           <View style={styles.toolbarActions}>
             <IconButton
+              icon="search-outline"
+              label="Search the Quran"
+              onPress={() => router.push("/search")}
+              size={19}
+            />
+            <IconButton
               icon="language-outline"
               label={
                 settings.showTranslation ? "Hide translation" : "Show translation"
@@ -402,6 +429,16 @@ export default function SurahReaderScreen() {
       <ReaderAppearanceSheet
         visible={appearanceOpen}
         onClose={() => setAppearanceOpen(false)}
+        onOpenTranslation={() => {
+          setAppearanceOpen(false);
+          setTranslationOpen(true);
+        }}
+      />
+      <TranslationPickerSheet
+        visible={translationOpen}
+        value={settings.translation}
+        onClose={() => setTranslationOpen(false)}
+        onChange={(translation) => update({ translation })}
       />
       <VerseActionsSheet
         visible={Boolean(selected)}

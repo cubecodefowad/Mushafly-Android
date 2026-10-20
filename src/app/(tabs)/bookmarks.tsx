@@ -9,6 +9,7 @@ import { SajdahBadge } from "../../components/quran/SajdahBadge";
 import { useBookmarkDetails } from "../../features/bookmarks/useBookmarkDetails";
 import { useLibrary } from "../../features/bookmarks/LibraryProvider";
 import { useSurahList } from "../../features/quran/hooks";
+import { translationInfo } from "../../features/settings/settings";
 import { useSettings } from "../../features/settings/SettingsProvider";
 import { useTheme } from "../../theme/ThemeProvider";
 import type { BookmarkRecord } from "../../types/quran";
@@ -20,6 +21,7 @@ export default function BookmarksScreen() {
   const { bookmarks, loaded, error, removeSavedBookmark } = useLibrary();
   const { data: surahs } = useSurahList();
   const details = useBookmarkDetails(settings.translation);
+  const translationIsRtl = translationInfo(settings.translation).direction === "rtl";
 
   const remove = (bookmark: BookmarkRecord) => {
     Alert.alert(
@@ -152,13 +154,11 @@ export default function BookmarksScreen() {
                           styles.translation,
                           {
                             color: colors.muted,
-                            fontFamily:
-                              settings.translation === "ar" ? fonts.arabic : fonts.serif,
+                            fontFamily: translationIsRtl ? fonts.arabic : fonts.serif,
                             fontSize: settings.translationSize,
                             lineHeight: Math.round(settings.translationSize * 1.6),
-                            textAlign: settings.translation === "ar" ? "right" : "left",
-                            writingDirection:
-                              settings.translation === "ar" ? "rtl" : "ltr",
+                            textAlign: translationIsRtl ? "right" : "left",
+                            writingDirection: translationIsRtl ? "rtl" : "ltr",
                           },
                         ]}
                       >

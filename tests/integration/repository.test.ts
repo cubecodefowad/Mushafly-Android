@@ -48,7 +48,7 @@ describe("Quran repository against the shipped database", () => {
   });
 
   it("loads a surah with its Bismillah row and ordered verses", async () => {
-    const surah = await getSurah(adapter, 2);
+    const surah = await getSurah(adapter, 2, "en");
     expect(surah.meta.number).toBe(2);
     expect(surah.bismillah?.number).toBe(0);
     expect(surah.bismillah?.arabic.length).toBeGreaterThan(0);
@@ -60,7 +60,7 @@ describe("Quran repository against the shipped database", () => {
   });
 
   it("preserves the prostration character and flag on 7:206", async () => {
-    const surah = await getSurah(adapter, 7);
+    const surah = await getSurah(adapter, 7, "en");
     const last = surah.verses.at(-1);
     expect(last?.number).toBe(206);
     expect(last?.hasSajdah).toBe(true);
@@ -70,7 +70,7 @@ describe("Quran repository against the shipped database", () => {
 
   it("renders Tajweed without changing any verse string", async () => {
     for (const number of [1, 2, 7, 36, 55, 96, 114]) {
-      const surah = await getSurah(adapter, number);
+      const surah = await getSurah(adapter, number, "en");
       for (const verse of [surah.bismillah, ...surah.verses]) {
         if (!verse) continue;
         const joined = verse.tajweed.segments.map((segment) => segment.text).join("");
@@ -84,8 +84,44 @@ describe("Quran repository against the shipped database", () => {
     }
   });
 
+  it("never begins a Tajweed colour run inside a joined word", async () => {
+    const nonJoining = new Set([
+      "\u0627", "\u0623", "\u0625", "\u0622", "\u0671", "\u062F", "\u0630",
+      "\u0631", "\u0632", "\u0648", "\u0624", "\u0629", "\u0621", "\u0649",
+      "\u06E5", "\u06E6",
+    ]);
+    const mark = /[\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED]/;
+    let checked = 0;
+    for (let number = 1; number <= 114; number++) {
+      const surah = await getSurah(adapter, number, "en");
+      for (const verse of surah.verses) {
+        let offset = 0;
+        for (const segment of verse.tajweed.segments) {
+          if (offset > 0 && segment.rule) {
+            // A standalone pause mark may begin a run; a mark attached to a
+            // letter may not.
+            if (mark.test(verse.arabic[offset])) {
+              expect(/\s/.test(verse.arabic[offset - 1])).toBe(true);
+            }
+            let index = offset - 1;
+            while (index > 0 && mark.test(verse.arabic[index])) index--;
+            const previous = verse.arabic[index];
+            if (!/\s/.test(previous) && !nonJoining.has(previous)) {
+              throw new Error(
+                `Colour run starts inside a joined word at ${number}:${verse.number} offset ${offset}`,
+              );
+            }
+          }
+          offset += segment.text.length;
+        }
+        checked++;
+      }
+    }
+    expect(checked).toBe(6236);
+  });
+
   it("keeps the single source BOM at 1:1 and nowhere else", async () => {
-    const first = await getSurah(adapter, 1);
+    const first = await getSurah(adapter, 1, "en");
     expect(first.verses[0].arabic.startsWith("\uFEFF")).toBe(true);
     const rows = db
       .prepare("SELECT surah, verse FROM verses WHERE instr(arabic, char(65279)) > 0")
@@ -117,6 +153,13 @@ describe("Quran repository against the shipped database", () => {
     expect(results[0].surahNumber).toBeGreaterThanOrEqual(1);
   });
 
+  it("never returns the unnumbered Bismillah row as a search result", async () => {
+    const arabic = await searchVerses(adapter, "بسم الله", "en");
+    expect(arabic.every((result) => result.verseNumber > 0)).toBe(true);
+    const english = await searchVerses(adapter, "in the name of god", "en");
+    expect(english.every((result) => result.verseNumber > 0)).toBe(true);
+  });
+
   it("returns no results for a query shorter than two characters", async () => {
     expect(await searchVerses(adapter, "a", "en")).toEqual([]);
     expect(await searchVerses(adapter, "  ", "en")).toEqual([]);
@@ -138,8 +181,36 @@ describe("Quran repository against the shipped database", () => {
     expect(ayah?.translation?.length).toBeGreaterThan(10);
   });
 
+  it("reads the selected dataset rather than a hard-coded translation", async () => {
+    const itani = await getSurah(adapter, 1, "en");
+    const saheeh = await getSurah(adapter, 1, "en.sahih");
+    const urdu = await getSurah(adapter, 1, "ur.kanzuliman");
+    expect(itani.verses[0].translation).toBeTruthy();
+    expect(saheeh.verses[0].translation).toBeTruthy();
+    expect(saheeh.verses[0].translation).not.toBe(itani.verses[0].translation);
+    expect(urdu.verses[0].translation).toMatch(/[\u0600-\u06FF]/);
+    expect(itani.verses[0].translationLanguage).toBe("en");
+    expect(urdu.verses[0].translationLanguage).toBe("ur.kanzuliman");
+  });
+
+  it("leaves the Bismillah row untranslated when a dataset has no row for it", async () => {
+    const surah = await getSurah(adapter, 2, "en.sahih");
+    expect(surah.bismillah?.number).toBe(0);
+    expect(surah.bismillah?.translation).toBeNull();
+    expect(surah.verses[0].translation).toBeTruthy();
+  });
+
+  it("searches whichever translation dataset is selected", async () => {
+    const saheeh = await searchVerses(adapter, "the most merciful", "en.sahih");
+    expect(saheeh.length).toBeGreaterThan(0);
+    expect(saheeh[0].matchField).toBe("translation");
+    const urdu = await searchVerses(adapter, "\u0627\u0644\u0644\u06c1", "ur.kanzuliman");
+    expect(urdu.length).toBeGreaterThan(0);
+    expect(urdu[0].translation).toMatch(/[\u0600-\u06FF]/);
+  });
+
   it("returns one verse with its sajdah flag and source audio URL", async () => {
-    const verse = await getVerse(adapter, 96, 19);
+    const verse = await getVerse(adapter, 96, 19, "en");
     expect(verse?.hasSajdah).toBe(true);
     expect(verse?.arabic.endsWith("\u06E9")).toBe(true);
     expect(verse?.audio?.url).toMatch(

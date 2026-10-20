@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
+import { translationInfo } from "../../features/settings/settings";
 import { useTheme } from "../../theme/ThemeProvider";
 import { ArabicText } from "./ArabicText";
 import { SajdahBadge } from "./SajdahBadge";
@@ -31,8 +32,8 @@ function VerseRowComponent({
   onToggleBookmark,
 }: Props) {
   const { colors, fonts } = useTheme();
-  const translation = verse.translations[settings.translation];
-  const rtlTranslation = settings.translation === "ar";
+  const translation = verse.translation;
+  const rtlTranslation = translationInfo(verse.translationLanguage).direction === "rtl";
 
   return (
     <Pressable
@@ -149,9 +150,9 @@ function VerseRowComponent({
               {translation}
             </AppText>
           )
-        ) : (
+        ) : verse.number === 0 ? null : (
           <AppText variant="caption" tone="muted" style={styles.translation}>
-            Translation unavailable in the selected dataset.
+            This dataset has no row for this verse.
           </AppText>
         )
       ) : null}

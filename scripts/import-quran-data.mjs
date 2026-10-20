@@ -36,6 +36,63 @@ const UPDATE_LOCK = process.argv.includes("--update-lock");
 
 const KNOWN_RULES = new Set(Object.keys(TAJWEED_RULES));
 const SAJDAH_CHAR = "\u06e9";
+
+const WEB_GENERATED = path.join(WEB_ROOT, "src", "data", "generated");
+function readWebJson(name) {
+  const file = path.join(WEB_GENERATED, name);
+  if (!fs.existsSync(file)) fail(`Missing web metadata ${name}`);
+  return JSON.parse(fs.readFileSync(file, "utf8"));
+}
+
+const attribution = readWebJson("attribution.json");
+const tanzilTranslations = readWebJson("tanzil-translations.json");
+const ALL_TRANSLATIONS = [...attribution.translations, ...tanzilTranslations];
+
+/**
+ * Dataset keys bundled in the Android build. The website ships every dataset in
+ * the Tanzil registry; the APK carries this offline subset so the download and
+ * the on-device database stay a reasonable size while every major reading
+ * language remains available without a network request.
+ */
+const DATASETS = [
+  "en",
+  "id",
+  "ar",
+  "ar.jalalayn",
+  "en.sahih",
+  "en.yusufali",
+  "en.pickthall",
+  "en.hilali",
+  "en.ahmedali",
+  "en.daryabadi",
+  "en.maududi",
+  "en.mubarakpuri",
+  "en.wahiduddin",
+  "en.qaribullah",
+  "en.ahmedraza",
+  "ur.kanzuliman",
+  "ur.junagarhi",
+  "fr.hamidullah",
+  "es.garcia",
+  "de.aburida",
+  "tr.diyanet",
+  "bn.bengali",
+  "fa.khorramdel",
+  "ru.kuliev",
+  "ms.basmeih",
+  "hi.hindi",
+  "pt.elhayek",
+  "sv.bernstrom",
+  "it.piccardo",
+  "sw.barwani",
+];
+
+const translationsMeta = DATASETS.map((key) => {
+  const meta = ALL_TRANSLATIONS.find((entry) => entry.languageCode === key);
+  if (!meta) fail(`Translation dataset ${key} is not in the web registry`);
+  return meta;
+});
+
 const EXPECTED_SAJDAH = SAJDAH_VERSES.map((entry) => `${entry.surah}:${entry.verse}`);
 const pad3 = (value) => String(value).padStart(3, "0");
 
@@ -79,7 +136,8 @@ const bomVerses = [];
 let rawTajweedRanges = 0;
 let unavailableTajweed = 0;
 let audioEntries = 0;
-let translationRows = { en: 0, id: 0, ar: 0 };
+const translationRows = Object.fromEntries(DATASETS.map((key) => [key, 0]));
+const translationValues = [];
 let arabicRows = 0;
 
 const audioBase = `https://raw.githubusercontent.com/semarketir/quranjson/${manifest.commit}/source/audio`;
@@ -94,17 +152,22 @@ for (const meta of metadata) {
 
   const file = pad3(number);
   const arabic = readJson(`surah/${file}.json`);
-  const en = readJson(`translation/en/${file}.json`);
-  const id = readJson(`translation/id/${file}.json`);
-  const ar = readJson(`translation/ar/${file}.json`);
   const tajweed = readJson(`tajweed/${file}.json`);
   const audio = readJson(`audio/${file}/index.json`);
 
   if (arabic.count !== meta.count) {
     fail(`Surah ${number}: Arabic count ${arabic.count} != metadata ${meta.count}`);
   }
-  if (en.count !== meta.count || id.count !== meta.count || ar.count !== meta.count) {
-    fail(`Surah ${number}: a translation count disagrees with metadata ${meta.count}`);
+
+  const sources = new Map();
+  for (const dataset of translationsMeta) {
+    const data = readJson(`translation/${dataset.languageCode}/${file}.json`);
+    if (data.count !== meta.count) {
+      fail(
+        `Surah ${number}: ${dataset.languageCode} count ${data.count} != metadata ${meta.count}`,
+      );
+    }
+    sources.set(dataset.languageCode, data);
   }
 
   const numberedKeys = Array.from({ length: meta.count }, (_, index) => `verse_${index + 1}`);
@@ -123,16 +186,13 @@ for (const meta of metadata) {
     fail(`Surah ${number}: Arabic verse keys are incomplete or unexpected`);
   }
 
-  for (const key of ["en", "id"]) {
-    const source = key === "en" ? en : id;
-    if (JSON.stringify(Object.keys(source.verse).sort()) !== JSON.stringify(expectedArabicKeys)) {
-      fail(`Surah ${number}: ${key} translation keys do not align with Arabic keys`);
-    }
-  }
-  if (ar.verse.verse_0 !== undefined) fail(`Surah ${number}: Arabic commentary unexpectedly has verse_0`);
-  for (const key of numberedKeys) {
-    if (typeof ar.verse[key] !== "string" || ar.verse[key].length === 0) {
-      fail(`Surah ${number}: Arabic commentary is missing ${key}`);
+  for (const dataset of translationsMeta) {
+    const source = sources.get(dataset.languageCode);
+    const keys = Object.keys(source.verse).sort();
+    const withBismillah = dataset.languageCode === "en" || dataset.languageCode === "id";
+    const expected = withBismillah ? expectedArabicKeys : [...numberedKeys].sort();
+    if (JSON.stringify(keys) !== JSON.stringify(expected)) {
+      fail(`Surah ${number}: ${dataset.languageCode} translation keys do not align with Arabic keys`);
     }
   }
 
@@ -153,17 +213,18 @@ for (const meta of metadata) {
     }
     arabicRows++;
 
-    for (const [lang, source] of [
-      ["en", en.verse[key]],
-      ["id", id.verse[key]],
-    ]) {
-      if (typeof source !== "string" || source.length === 0) {
-        fail(`Surah ${number}: ${lang} translation ${key} is missing or empty`);
+    for (const dataset of translationsMeta) {
+      const text = sources.get(dataset.languageCode).verse[key];
+      if (text === undefined) {
+        if (verseNumber === 0) continue;
+        fail(`Surah ${number}: ${dataset.languageCode} translation ${key} is missing`);
       }
-      translationRows[lang]++;
+      if (typeof text !== "string" || text.length === 0) {
+        fail(`Surah ${number}: ${dataset.languageCode} translation ${key} is empty`);
+      }
+      translationValues.push([dataset.languageCode, number, verseNumber, text]);
+      translationRows[dataset.languageCode]++;
     }
-    const commentary = verseNumber === 0 ? null : ar.verse[key];
-    if (verseNumber > 0) translationRows.ar++;
 
     if (arabicText.startsWith("\ufeff")) bomVerses.push(`${number}:${key}`);
     if (arabicText.includes(SAJDAH_CHAR)) computedSajdah.push(`${number}:${verseNumber}`);
@@ -204,12 +265,6 @@ for (const meta of metadata) {
       verse: verseNumber,
       arabic: arabicText,
       arabicSearch: normalize(arabicText),
-      en: en.verse[key],
-      enSearch: normalize(en.verse[key]),
-      id: id.verse[key],
-      idSearch: normalize(id.verse[key]),
-      ar: commentary,
-      arSearch: commentary ? normalize(commentary) : null,
       tajweed: JSON.stringify(ranges),
       hasSajdah: arabicText.includes(SAJDAH_CHAR) ? 1 : 0,
       audioFile: audioEntry.file,
@@ -245,8 +300,16 @@ if (computedSajdah.length !== 15) fail(`Expected 15 sajdah verses, found ${compu
 if (arabicRows !== manifest.counts.arabicEntries) {
   fail(`Arabic row total ${arabicRows} != manifest ${manifest.counts.arabicEntries}`);
 }
-if (translationRows.en !== 6348 || translationRows.id !== 6348 || translationRows.ar !== 6236) {
-  fail(`Translation totals are ${JSON.stringify(translationRows)}, expected 6348/6348/6236`);
+for (const dataset of translationsMeta) {
+  const expected = dataset.rows ?? (dataset.languageCode === "en" || dataset.languageCode === "id" ? 6348 : 6236);
+  if (translationRows[dataset.languageCode] !== expected) {
+    fail(
+      `Translation ${dataset.languageCode} has ${translationRows[dataset.languageCode]} rows, expected ${expected}`,
+    );
+  }
+}
+if (translationValues.length !== DATASETS.reduce((sum, key) => sum + translationRows[key], 0)) {
+  fail("Translation row accounting is inconsistent.");
 }
 if (rawTajweedRanges !== manifest.counts.tajweedSegments) {
   fail(
@@ -292,12 +355,12 @@ for (const surah of surahs) {
   const file = pad3(surah.meta.number);
   inputFiles.push(
     `surah/${file}.json`,
-    `translation/en/${file}.json`,
-    `translation/id/${file}.json`,
-    `translation/ar/${file}.json`,
     `tajweed/${file}.json`,
     `audio/${file}/index.json`,
   );
+  for (const dataset of DATASETS) {
+    inputFiles.push(`translation/${dataset}/${file}.json`);
+  }
 }
 inputFiles.sort();
 const treeHash = crypto.createHash("sha256");
@@ -329,7 +392,7 @@ const db = new DatabaseSync(tempDb);
 db.exec(`
   PRAGMA journal_mode = DELETE;
   PRAGMA page_size = 4096;
-  PRAGMA user_version = 1;
+  PRAGMA user_version = 2;
   CREATE TABLE meta (
     key TEXT PRIMARY KEY NOT NULL,
     value TEXT NOT NULL
@@ -349,12 +412,6 @@ db.exec(`
     verse INTEGER NOT NULL,
     arabic TEXT NOT NULL,
     arabic_search TEXT NOT NULL,
-    en TEXT NOT NULL,
-    en_search TEXT NOT NULL,
-    id TEXT NOT NULL,
-    id_search TEXT NOT NULL,
-    ar TEXT,
-    ar_search TEXT,
     tajweed_json TEXT NOT NULL,
     has_sajdah INTEGER NOT NULL,
     audio_file TEXT NOT NULL,
@@ -363,6 +420,14 @@ db.exec(`
     PRIMARY KEY (surah, verse)
   );
   CREATE INDEX verses_surah ON verses(surah);
+  CREATE TABLE translations (
+    dataset TEXT NOT NULL,
+    surah INTEGER NOT NULL,
+    verse INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    PRIMARY KEY (dataset, surah, verse)
+  ) WITHOUT ROWID;
+  CREATE INDEX translations_dataset_verse ON translations(dataset, surah, verse);
 `);
 
 const insertMeta = db.prepare("INSERT INTO meta (key, value) VALUES (?, ?)");
@@ -372,10 +437,13 @@ const insertSurah = db.prepare(`
 `);
 const insertVerse = db.prepare(`
   INSERT INTO verses (
-    surah, verse, arabic, arabic_search, en, en_search, id, id_search,
-    ar, ar_search, tajweed_json, has_sajdah, audio_file, audio_url, audio_size
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    surah, verse, arabic, arabic_search, tajweed_json, has_sajdah,
+    audio_file, audio_url, audio_size
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
+const insertTranslation = db.prepare(
+  "INSERT INTO translations (dataset, surah, verse, text) VALUES (?, ?, ?, ?)",
+);
 
 db.exec("BEGIN IMMEDIATE");
 try {
@@ -397,12 +465,6 @@ try {
         verse.verse,
         verse.arabic,
         verse.arabicSearch,
-        verse.en,
-        verse.enSearch,
-        verse.id,
-        verse.idSearch,
-        verse.ar,
-        verse.arSearch,
         verse.tajweed,
         verse.hasSajdah,
         verse.audioFile,
@@ -411,9 +473,12 @@ try {
       );
     }
   }
+  for (const [dataset, surah, verse, text] of translationValues) {
+    insertTranslation.run(dataset, surah, verse, text);
+  }
 
   const metaRows = {
-    schemaVersion: "1",
+    schemaVersion: "2",
     sourceRepository: manifest.repository,
     sourceCommit: manifest.commit,
     sourceLicense: manifest.license,
@@ -430,7 +495,11 @@ try {
     audioSource: manifest.audio.source,
     audioLicenseUrl: manifest.audio.licenseUrl,
     audioBitrate: manifest.audio.bitrate ?? "",
-    translationsJson: JSON.stringify(manifest.translations),
+    translationsJson: JSON.stringify(translationsMeta),
+    translationDatasets: String(DATASETS.length),
+    translationRowsTotal: String(
+      Object.values(translationRows).reduce((sum, value) => sum + value, 0),
+    ),
     fontSha256,
   };
   for (const [key, value] of Object.entries(metaRows)) insertMeta.run(key, String(value));
@@ -449,13 +518,19 @@ const checks = [
   ["numbered verses", "SELECT COUNT(*) AS n FROM verses WHERE verse > 0", 6236],
   ["sajdah", "SELECT COUNT(*) AS n FROM verses WHERE has_sajdah = 1", 15],
   ["bismillah", "SELECT COUNT(*) AS n FROM verses WHERE verse = 0", 112],
+  ["translation datasets", "SELECT COUNT(DISTINCT dataset) AS n FROM translations", DATASETS.length],
+  [
+    "translation rows",
+    "SELECT COUNT(*) AS n FROM translations",
+    Object.values(translationRows).reduce((sum, value) => sum + value, 0),
+  ],
 ];
 for (const [label, sql, expected] of checks) {
   const actual = Number(db.prepare(sql).get().n);
   if (actual !== expected) fail(`Post-build check failed: ${label} ${actual} != ${expected}`);
 }
 const roundTrip = db
-  .prepare("SELECT surah, verse, arabic, en, id, ar, tajweed_json, has_sajdah FROM verses")
+  .prepare("SELECT surah, verse, arabic, tajweed_json, has_sajdah FROM verses")
   .all();
 const expectedRows = surahs.flatMap((surah) => surah.verses);
 if (roundTrip.length !== expectedRows.length) fail("Post-build row count changed while writing.");
@@ -466,13 +541,25 @@ for (let index = 0; index < expectedRows.length; index++) {
     stored.surah !== source.surah ||
     stored.verse !== source.verse ||
     stored.arabic !== source.arabic ||
-    stored.en !== source.en ||
-    stored.id !== source.id ||
-    stored.ar !== source.ar ||
     stored.tajweed_json !== source.tajweed ||
     stored.has_sajdah !== source.hasSajdah
   ) {
     fail(`Post-build round-trip mismatch at ${source.surah}:${source.verse}`);
+  }
+}
+
+const translationRoundTrip = db
+  .prepare("SELECT dataset, surah, verse, text FROM translations")
+  .all();
+if (translationRoundTrip.length !== translationValues.length) {
+  fail("Post-build translation row count changed while writing.");
+}
+const translationLookup = new Map(
+  translationRoundTrip.map((row) => [`${row.dataset}|${row.surah}|${row.verse}`, row.text]),
+);
+for (const [dataset, surah, verse, text] of translationValues) {
+  if (translationLookup.get(`${dataset}|${surah}|${verse}`) !== text) {
+    fail(`Post-build translation mismatch at ${dataset} ${surah}:${verse}`);
   }
 }
 
@@ -484,7 +571,7 @@ const dbSha256 = sha256File(DB_PATH);
 const dbBytes = fs.statSync(DB_PATH).size;
 const dataVersion = dbSha256.slice(0, 16);
 const lock = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   source: {
     repository: manifest.repository,
     commit: manifest.commit,
@@ -511,6 +598,7 @@ const lock = {
     surahs: surahs.length,
     arabicRows,
     numberedVerses: manifest.counts.verses,
+    translationDatasets: DATASETS.length,
     translationRows,
     tajweedRanges: rawTajweedRanges,
     tajweedUnavailable: unavailableTajweed,
@@ -557,7 +645,7 @@ export const SOURCE_INFO: SourceInfo = ${JSON.stringify(
     repository: manifest.repository,
     commit: manifest.commit,
     license: manifest.license,
-    translations: manifest.translations,
+    translations: translationsMeta,
     audio: {
       reciter: manifest.audio.reciter,
       source: manifest.audio.source,
@@ -568,7 +656,7 @@ export const SOURCE_INFO: SourceInfo = ${JSON.stringify(
       surahs: manifest.counts.surahs,
       verses: manifest.counts.verses,
       arabicEntries: manifest.counts.arabicEntries,
-      translationRows: manifest.counts.translationRows,
+      translationRows,
       tajweedSegments: manifest.counts.tajweedSegments,
       bismillahVerses: manifest.counts.bismillahVerses,
     },
@@ -590,6 +678,7 @@ console.log(
     `  rows        ${arabicRows} (${manifest.counts.verses} numbered + 112 Bismillah)`,
     `  sajdah      ${computedSajdah.length} verified references`,
     `  tajweed     ${rawTajweedRanges} ranges, ${unavailableTajweed} verses rendered plain`,
+    `  translations ${DATASETS.length} datasets, ${translationValues.length} rows`,
     `  database    ${(dbBytes / 1024 / 1024).toFixed(2)} MiB, sha256 ${dbSha256.slice(0, 16)}…`,
   ].join("\n"),
 );

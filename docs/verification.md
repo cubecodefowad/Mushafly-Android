@@ -24,9 +24,10 @@ checkout present, all 6,348 rows are compared byte for byte against
 | Check | Result |
 | --- | --- |
 | `npx tsc --noEmit` | pass, no errors |
-| `npm run data:validate` | pass — pinned hash, 114 surahs, 6,236 numbered verses, 112 Bismillah rows, 15 sajdah refs, 60,841 Tajweed ranges, 147 intentionally plain verses, 1,446-glyph font covers every displayed Arabic code point, 6,348 rows byte-compared with the source |
-| `npm test` | pass — 9 suites, 49 tests |
-| `npx expo export --platform android` | pass — Hermes bundle 4.6 MB, database asset 18.5 MB present in the export |
+| `npm run data:validate` | pass — pinned hash, 114 surahs, 6,236 numbered verses, 112 Bismillah rows, 30 translation datasets / 187,304 rows, 15 sajdah refs, 60,841 Tajweed ranges, 147 intentionally plain verses, 1,446-glyph font covers every displayed Arabic code point, 6,348 rows byte-compared with the source |
+| `npm test` | pass — 10 suites, 63 tests |
+| `npx expo export --platform android` | pass — Hermes bundle 4.7 MB, 61.5 MB database asset present in the export |
+| `npx expo-doctor` | pass — 20/20 checks |
 | APK build | pass in GitHub Actions (run [39307503501](https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39307503501), commit `7768b67`): artifact `mushafly-apk`, 44 MB zip, release APK built with the generated debug keystore |
 | APK on a device | **not run** — no device or emulator was available to this workspace |
 
@@ -48,7 +49,15 @@ Unit tests:
   valid ranges; it refuses unknown rules, overlaps, out-of-bounds ranges and
   missing annotations instead of guessing; it accounts for the single U+FEFF
   artifact without deleting it; the sajdah character survives at the end of
-  7:206.
+  7:206. It also proves that no colour run starts on a combining mark attached
+  to a letter, or inside a joined word, and that a rule annotated on a
+  superscript alef keeps that alef with its base letter.
+- `normalizeForSearch` keeps the letters of every bundled script (Urdu, Bengali,
+  Cyrillic, Japanese) and still folds case, accents, Arabic diacritics and
+  punctuation.
+- `canStreamAudio` treats only an explicit disconnection or unreachable network
+  as offline, allows a play attempt when reachability is unknown, and the
+  offline/timeout messages always explain the failure.
 - `parseSettings` clamps sizes, rejects bad themes and translations, ignores
   unknown keys and falls back to defaults for malformed storage.
 - Reference helpers produce stable `surah:verse` keys and safe timestamps.
@@ -58,8 +67,9 @@ Unit tests:
 Component tests (`@testing-library/react-native`):
 
 - `ArabicText` renders the exact source string with Tajweed off and on, keeps
-  U+06E9 at the end, and sets `writingDirection: rtl`, right alignment, the
-  Amiri Quran family and `accessibilityLanguage: "ar"`.
+  U+06E9 at the end, paints a source rule with its palette colour and underline,
+  and sets `writingDirection: rtl`, right alignment, the Amiri Quran family and
+  `accessibilityLanguage: "ar"`.
 - `SajdahBadge` shows the U+06E9 glyph plus the word "Sajdah" and an accessible
   label.
 
@@ -74,10 +84,27 @@ Integration tests:
   source for seven surahs, the single BOM at 1:1, 15 SQL-derived sajdah
   references, Arabic and English search excerpts, bookmark previews, and the
   pinned audio URL.
+- It also walks all 6,236 verses and asserts the shaping invariant on the real
+  annotation: no colour run may start on a mark attached to a letter or inside a
+  joined word. It confirms the selected dataset is read from the translations
+  table (`en.sahih` differs from `en`, Urdu returns Urdu), that only `en` and
+  `id` carry Bismillah rows, and that search follows the selected dataset in
+  both English and Urdu.
 
 Not covered by automated tests: the SQLite copy-on-first-launch path, audio
 lifecycle on a real device, gesture and scroll performance, safe areas and
 cutouts, and Android process death. These need an emulator or phone.
+
+## Reader fixes in 1.1.0
+
+| Report | Cause found | Fix | Evidence |
+| --- | --- | --- | --- |
+| Ayat only play online; offline shows an endless loading state | The player was replaced with a remote URL and waited for `isLoaded` forever; there was no connectivity check and no timeout, and the error surface only existed once a track had been set | Check connectivity before loading, show the track immediately, set an explicit offline message, and fail a stream that never loads after 12 seconds; play/retry re-checks the connection | `connectivity.test.ts` covers the rule and both messages; `AudioProvider` sets the error and clears `loading`; the audio bar shows the message and a Retry action |
+| Arabic letters unconnected in places | React Native on Android shapes each nested `Text` run separately. Character-level Tajweed ranges (many begin on a diacritic or mid-word) split words into separate runs | Ranges are grouped into letter clusters and colour runs may only start at a word edge or after a letter that does not join forward; the whole touched span is coloured instead | Unit tests assert no run splits a cluster or starts in a joined word; the repository walk asserts the same across all 6,236 verses; the report's “translation is fine” observation matches the cause, since translations are single strings |
+| Tajweed ranges do not align, so there are no colours | Same cause: ranges beginning on a combining mark were sliced apart, so the colour landed on a detached mark and looked absent; the 147 out-of-bounds verses were additionally shown plain | Attach every range to its letter cluster before choosing runs, and paint the cluster's whole span; the 147 unusable verses stay labelled and plain | `tajweed.test.ts` covers a rule annotated on a superscript alef; the all-verse walk checks cluster boundaries; `ArabicText.test.tsx` asserts the palette colour and underline are actually rendered |
+| No scrolling while ayat play | Playback changed the track but nothing told the list to move | An effect follows `audio.current` and calls `scrollToIndex` for the playing verse (top for the Bismillah), with the existing `onScrollToIndexFailed` fallback | Code path in `surah/[number].tsx`; needs a device pass to judge feel |
+| No separate Tajweed, search, About, ToS or privacy pages | Search and About existed but were not tabs, and there was no legal or Tajweed reference screen | Search is a tab with its own icon and is reachable from the reader header; Tajweed and marks, Terms of Service and Privacy Policy are separate screens linked from Home, Settings and About | TypeScript + Metro bundle include every route; copy was rewritten for the app's real storage and network behaviour |
+| Search for ayat missing | The search screen existed but was buried behind a Home tile, and its text only described an English translation | Search is a dedicated tab, searches the selected dataset, names that dataset, and explains Arabic matching | Repository integration tests cover Arabic, English and Urdu searches |
 
 ## Sajdah investigation
 
@@ -154,7 +181,10 @@ with the source commit, license and translation credits.
 - The APK was produced by CI, not by this workspace, and has not been installed
   on a device. Its signing identity is the debug keystore.
 - Audio is streamed from the pinned source; the app does not claim offline
-  recitation.
+  recitation. An offline press now explains this instead of spinning.
+- Tajweed colour is applied to the touched word span when a rule begins inside a
+  joined word, because character-level runs disconnect Arabic letters on
+  Android. The letters themselves are never changed.
 - 147 verses have unusable upstream Tajweed annotation and are shown plain.
 - The single U+FEFF at the start of 1:1 is preserved exactly as the source
   stores it. It has no visible width and no Quranic meaning.

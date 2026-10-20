@@ -63,7 +63,7 @@ const db = new DatabaseSync(DB_PATH, { readOnly: true });
 const meta = Object.fromEntries(
   db.prepare("SELECT key, value FROM meta").all().map((row) => [row.key, row.value]),
 );
-if (meta.schemaVersion !== "1") fail(`Unexpected schema version ${meta.schemaVersion}`);
+if (meta.schemaVersion !== "2") fail(`Unexpected schema version ${meta.schemaVersion}`);
 if (meta.sourceCommit !== lock.source.commit) fail("Database source commit does not match the lock.");
 if (meta.sourceRepository !== lock.source.repository) fail("Database source repository mismatch.");
 if (meta.sourceLicense !== "MIT") fail(`Unexpected source license ${meta.sourceLicense}`);
@@ -72,6 +72,16 @@ if (Number(meta.numberedVerses) !== 6236) fail(`Numbered verses ${meta.numberedV
 if (Number(meta.tajweedRanges) !== 60841) fail(`Tajweed ranges ${meta.tajweedRanges} != 60841`);
 if (Number(meta.sajdahCount) !== 15) fail(`Sajdah count ${meta.sajdahCount} != 15`);
 if (Number(meta.audioEntries) !== 6348) fail(`Audio entries ${meta.audioEntries} != 6348`);
+const translationRows = JSON.parse(meta.translationRows);
+const datasets = Object.keys(translationRows);
+if (datasets.length < 20) fail(`Only ${datasets.length} translation datasets are bundled`);
+if (Number(meta.translationDatasets) !== datasets.length) {
+  fail(`Meta dataset count ${meta.translationDatasets} != ${datasets.length}`);
+}
+const expectedTranslationRows = Object.values(translationRows).reduce((sum, value) => sum + value, 0);
+if (Number(meta.translationRowsTotal) !== expectedTranslationRows) {
+  fail(`Meta translation row total ${meta.translationRowsTotal} != ${expectedTranslationRows}`);
+}
 
 const integrity = db.prepare("PRAGMA quick_check").get();
 if (Object.values(integrity)[0] !== "ok") fail(`SQLite quick_check failed: ${JSON.stringify(integrity)}`);
@@ -82,6 +92,8 @@ const counts = [
   ["numbered", "SELECT COUNT(*) AS n FROM verses WHERE verse > 0", 6236],
   ["bismillah", "SELECT COUNT(*) AS n FROM verses WHERE verse = 0", 112],
   ["sajdah", "SELECT COUNT(*) AS n FROM verses WHERE has_sajdah = 1", 15],
+  ["translation datasets", "SELECT COUNT(DISTINCT dataset) AS n FROM translations", datasets.length],
+  ["translation rows", "SELECT COUNT(*) AS n FROM translations", expectedTranslationRows],
 ];
 for (const [label, sql, expected] of counts) {
   const actual = Number(db.prepare(sql).get().n);
@@ -110,8 +122,8 @@ for (let index = 0; index < surahs.length; index++) {
 
 const verses = db
   .prepare(
-    `SELECT surah, verse, arabic, arabic_search, en, en_search, id, id_search,
-            ar, ar_search, tajweed_json, has_sajdah, audio_file, audio_url, audio_size
+    `SELECT surah, verse, arabic, arabic_search, tajweed_json, has_sajdah,
+            audio_file, audio_url, audio_size
      FROM verses ORDER BY surah, verse`,
   )
   .all();
@@ -151,27 +163,6 @@ for (const row of verses) {
   if (normalize(row.arabic) !== row.arabic_search) {
     fail(`Surah ${row.surah}:${row.verse} Arabic search column is not derived from the text`);
   }
-  if (typeof row.en !== "string" || row.en.length === 0) {
-    fail(`Surah ${row.surah}:${row.verse} has no English translation`);
-  }
-  if (normalize(row.en) !== row.en_search) {
-    fail(`Surah ${row.surah}:${row.verse} English search column is not derived from the text`);
-  }
-  if (typeof row.id !== "string" || row.id.length === 0) {
-    fail(`Surah ${row.surah}:${row.verse} has no Indonesian translation`);
-  }
-  if (normalize(row.id) !== row.id_search) {
-    fail(`Surah ${row.surah}:${row.verse} Indonesian search column is not derived from the text`);
-  }
-  if (row.verse === 0) {
-    if (row.ar !== null) fail(`Surah ${row.surah} Bismillah row has unexpected commentary`);
-  } else if (typeof row.ar !== "string" || row.ar.length === 0) {
-    fail(`Surah ${row.surah}:${row.verse} has no Arabic commentary`);
-  }
-  if (row.ar !== null && normalize(row.ar) !== row.ar_search) {
-    fail(`Surah ${row.surah}:${row.verse} commentary search column is stale`);
-  }
-
   const ranges = JSON.parse(row.tajweed_json);
   if (!Array.isArray(ranges)) fail(`Surah ${row.surah}:${row.verse} Tajweed is not an array`);
   for (const range of ranges) {
@@ -215,6 +206,41 @@ if (JSON.stringify(sajdah) !== JSON.stringify(expectedSajdah)) {
 }
 if (unavailable !== 147) fail(`Tajweed-unavailable verses ${unavailable} != pinned 147`);
 
+// Translation datasets: every row belongs to a real verse, every dataset has
+// the pinned row count, and no dataset invents a Bismillah row.
+const translationRowsByDataset = db
+  .prepare("SELECT dataset, COUNT(*) AS n FROM translations GROUP BY dataset")
+  .all();
+for (const entry of translationRowsByDataset) {
+  if (!(entry.dataset in translationRows)) fail(`Unexpected translation dataset ${entry.dataset}`);
+  if (entry.n !== translationRows[entry.dataset]) {
+    fail(`Dataset ${entry.dataset} has ${entry.n} rows, expected ${translationRows[entry.dataset]}`);
+  }
+}
+for (const dataset of datasets) {
+  if (!translationRowsByDataset.some((entry) => entry.dataset === dataset)) {
+    fail(`Translation dataset ${dataset} is empty`);
+  }
+}
+const orphanTranslations = db
+  .prepare(
+    `SELECT COUNT(*) AS n FROM translations t
+     LEFT JOIN verses v ON v.surah = t.surah AND v.verse = t.verse
+     WHERE v.surah IS NULL`,
+  )
+  .get().n;
+if (orphanTranslations !== 0) fail(`${orphanTranslations} translation rows point at missing verses`);
+const emptyTranslations = db
+  .prepare("SELECT COUNT(*) AS n FROM translations WHERE text IS NULL OR length(trim(text)) = 0")
+  .get().n;
+if (emptyTranslations !== 0) fail(`${emptyTranslations} translation rows are empty`);
+const bismillahTranslations = db
+  .prepare("SELECT COUNT(*) AS n FROM translations WHERE verse = 0")
+  .get().n;
+if (bismillahTranslations !== 224) {
+  fail(`Bismillah translation rows ${bismillahTranslations} != 224 (only en and id carry one)`);
+}
+
 // Every character the reader can display must exist in the bundled font. This
 // is the check that prevents the sajdah sign (U+06E9) or another mark from
 // silently falling back to a font that renders it as a box or nothing.
@@ -256,26 +282,40 @@ if (HAS_SOURCE) {
     const number = Number(sourceMeta.index);
     const file = pad3(number);
     const arabic = JSON.parse(fs.readFileSync(path.join(SOURCE_ROOT, "surah", `${file}.json`), "utf8"));
-    const en = JSON.parse(
-      fs.readFileSync(path.join(SOURCE_ROOT, "translation", "en", `${file}.json`), "utf8"),
-    );
-    const id = JSON.parse(
-      fs.readFileSync(path.join(SOURCE_ROOT, "translation", "id", `${file}.json`), "utf8"),
-    );
-    const ar = JSON.parse(
-      fs.readFileSync(path.join(SOURCE_ROOT, "translation", "ar", `${file}.json`), "utf8"),
-    );
     const tajweed = JSON.parse(
       fs.readFileSync(path.join(SOURCE_ROOT, "tajweed", `${file}.json`), "utf8"),
+    );
+    const translationSources = new Map(
+      datasets.map((dataset) => [
+        dataset,
+        JSON.parse(
+          fs.readFileSync(
+            path.join(SOURCE_ROOT, "translation", dataset, `${file}.json`),
+            "utf8",
+          ),
+        ),
+      ]),
+    );
+    const storedTranslations = new Map(
+      db
+        .prepare("SELECT dataset, verse, text FROM translations WHERE surah = ?")
+        .all(number)
+        .map((entry) => [`${entry.dataset}|${entry.verse}`, entry.text]),
     );
     for (const row of verses.filter((entry) => entry.surah === number)) {
       const key = `verse_${row.verse}`;
       if (row.arabic !== arabic.verse[key]) fail(`Arabic drift at ${number}:${key}`);
-      if (row.en !== en.verse[key]) fail(`English drift at ${number}:${key}`);
-      if (row.id !== id.verse[key]) fail(`Indonesian drift at ${number}:${key}`);
-      if (row.verse > 0 && row.ar !== ar.verse[key]) fail(`Commentary drift at ${number}:${key}`);
       if (row.tajweed_json !== JSON.stringify(tajweed.verse[key])) {
         fail(`Tajweed metadata drift at ${number}:${key}`);
+      }
+      for (const dataset of datasets) {
+        const sourceText = translationSources.get(dataset).verse[key];
+        const storedText = storedTranslations.get(`${dataset}|${row.verse}`);
+        if (sourceText === undefined) {
+          if (storedText !== undefined) fail(`${dataset} invented a row at ${number}:${key}`);
+          continue;
+        }
+        if (storedText !== sourceText) fail(`${dataset} drift at ${number}:${key}`);
       }
       sourceCompared++;
     }
@@ -291,6 +331,7 @@ console.log(
     `  database      ${(lock.output.databaseBytes / 1024 / 1024).toFixed(2)} MiB, hash verified`,
     `  coverage      114 surahs, 6,236 numbered verses, 112 Bismillah rows`,
     `  sajdah        15 references, source character present`,
+    `  translations  ${datasets.length} datasets, ${expectedTranslationRows.toLocaleString("en")} rows`,
     `  tajweed       60,841 ranges, 147 verses intentionally plain`,
     `  font          ${font.numGlyphs} glyphs, all displayed Arabic code points covered`,
     HAS_SOURCE

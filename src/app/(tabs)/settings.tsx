@@ -1,7 +1,9 @@
 import Constants from "expo-constants";
 import { router } from "expo-router";
 import * as Linking from "expo-linking";
+import { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { TranslationPickerSheet } from "../../components/settings/TranslationPickerSheet";
 import { AppText } from "../../components/ui/AppText";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -17,10 +19,11 @@ import {
   TRANSLATIONS,
   adjustSize,
   translationInfo,
+  translationLabel,
 } from "../../features/settings/settings";
 import { useSettings } from "../../features/settings/SettingsProvider";
 import { useTheme } from "../../theme/ThemeProvider";
-import type { ThemePreference, TranslationLanguage } from "../../types/quran";
+import type { ThemePreference } from "../../types/quran";
 import { formatCount } from "../../utils/reference";
 
 const THEME_OPTIONS: Array<{ value: ThemePreference; label: string }> = [
@@ -91,11 +94,7 @@ export default function SettingsScreen() {
   const activeTranslation = translationInfo(settings.translation);
   const databaseMiB = (DATA_LOCK.output.databaseBytes / 1024 / 1024).toFixed(1);
   const version = Constants.expoConfig?.version ?? "1.0.0";
-
-  const translationOptions = TRANSLATIONS.map((entry) => ({
-    value: entry.languageCode as TranslationLanguage,
-    label: entry.label,
-  }));
+  const [translationOpen, setTranslationOpen] = useState(false);
 
   return (
     <Screen>
@@ -167,7 +166,7 @@ export default function SettingsScreen() {
           />
           <Stepper
             label="Translation font size"
-            description="English, Indonesian or Arabic commentary"
+            description="The selected translation, commentary or tafsir"
             value={settings.translationSize}
             displayValue={`${settings.translationSize} pt`}
             onDecrease={() =>
@@ -208,18 +207,15 @@ export default function SettingsScreen() {
           />
 
           <View style={[styles.rule, { backgroundColor: colors.border }]} />
-          <AppText variant="meta" tone="muted">
-            Translation dataset
-          </AppText>
-          <Segmented
-            options={translationOptions}
-            value={settings.translation}
-            onChange={(translation) => update({ translation })}
-            style={styles.control}
+          <InfoRow
+            label="Translation dataset"
+            value={`${translationLabel(activeTranslation)} · ${activeTranslation.translator}`}
+            onPress={() => setTranslationOpen(true)}
           />
           <AppText variant="caption" tone="muted" style={styles.help}>
-            {activeTranslation.name} · {activeTranslation.translator} ·{" "}
-            {activeTranslation.source}
+            {TRANSLATIONS.length} datasets in {new Set(TRANSLATIONS.map((entry) => entry.group ?? entry.label)).size}{" "}
+            languages are bundled offline. {activeTranslation.name} ·{" "}
+            {activeTranslation.translator} · {activeTranslation.source}
             {activeTranslation.direction === "rtl"
               ? ". This is an Arabic commentary (tafsir), not a verse translation."
               : "."}
@@ -234,13 +230,20 @@ export default function SettingsScreen() {
             value={settings.autoAdvanceAudio}
             onValueChange={(autoAdvanceAudio) => update({ autoAdvanceAudio })}
           />
+          <SwitchRow
+            label="Follow the recitation"
+            description="Scroll the reader to the verse that is playing"
+            value={settings.followAudio}
+            onValueChange={(followAudio) => update({ followAudio })}
+          />
           <View style={[styles.rule, { backgroundColor: colors.border }]} />
           <AppText variant="caption" tone="muted" style={styles.audioNote}>
             Audio is streamed from the pinned quranjson source and needs an
             internet connection. The app does not bundle recitation files, does
-            not download them, and does not claim offline audio. Playback pauses
-            when the app leaves the foreground. Only one recitation can play at a
-            time.
+            not download them, and does not claim offline audio. Pressing play
+            offline explains that, and a stream that cannot start fails with a
+            retry action instead of loading forever. Playback pauses when the app
+            leaves the foreground. Only one recitation can play at a time.
           </AppText>
         </Card>
 
@@ -256,13 +259,10 @@ export default function SettingsScreen() {
           />
           <InfoRow
             label="Translations"
-            value={SOURCE_INFO.translations
-              .map((entry) =>
-                entry.languageCode === "ar"
-                  ? `${entry.label} commentary: ${entry.translator}`
-                  : `${entry.label}: ${entry.translator} (${entry.source})`,
-              )
-              .join(" · ")}
+            value={`${TRANSLATIONS.length} datasets across ${new Set(
+              TRANSLATIONS.map((entry) => entry.group ?? entry.label),
+            ).size} languages · Tanzil.net and the pinned quranjson source`}
+            onPress={() => router.push("/about")}
           />
           <InfoRow
             label="Tajweed"
@@ -272,7 +272,7 @@ export default function SettingsScreen() {
             label="Recitation"
             value={`${SOURCE_INFO.audio.reciter} · ${SOURCE_INFO.audio.source} · ${SOURCE_INFO.audio.bitrate ?? "streamed"}`}
           />
-          <InfoRow label="Bundled database" value={`${databaseMiB} MiB · schema 1`} />
+          <InfoRow label="Bundled database" value={`${databaseMiB} MiB · schema 2`} />
           <InfoRow label="Arabic font" value="Amiri Quran · SIL Open Font License" />
           <InfoRow
             label="Accuracy, sources and reporting"
@@ -296,6 +296,13 @@ export default function SettingsScreen() {
             onPress={() => void Linking.openURL(`mailto:${CONTACT}`).catch(() => {})}
           />
         </Card>
+
+        <TranslationPickerSheet
+          visible={translationOpen}
+          value={settings.translation}
+          onClose={() => setTranslationOpen(false)}
+          onChange={(translation) => update({ translation })}
+        />
 
         <View style={styles.reset}>
           <Button

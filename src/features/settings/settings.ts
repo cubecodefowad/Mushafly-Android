@@ -2,6 +2,7 @@ import { SOURCE_INFO } from "../../data/generated/source";
 import type {
   ReaderSettings,
   ThemePreference,
+  TranslationGroup,
   TranslationInfo,
   TranslationLanguage,
 } from "../../types/quran";
@@ -18,6 +19,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   tajweed: true,
   translation: DEFAULT_TRANSLATION,
   autoAdvanceAudio: true,
+  followAudio: true,
 };
 
 export const SETTINGS_LIMITS = {
@@ -39,6 +41,25 @@ export function translationInfo(languageCode: TranslationLanguage): TranslationI
   return (
     TRANSLATIONS.find((entry) => entry.languageCode === languageCode) ?? TRANSLATIONS[0]
   );
+}
+
+export function translationLabel(translation: TranslationInfo): string {
+  return translation.shortName ?? translation.name;
+}
+
+/** Groups the bundled datasets by language, preserving registry order. */
+export function groupedTranslations(): TranslationGroup[] {
+  const groups: TranslationGroup[] = [];
+  for (const translation of TRANSLATIONS) {
+    const label = translation.group ?? translation.language ?? translation.label;
+    let group = groups.find((candidate) => candidate.label === label);
+    if (!group) {
+      group = { label, translations: [] };
+      groups.push(group);
+    }
+    group.translations.push(translation);
+  }
+  return groups;
 }
 
 /**
@@ -89,6 +110,7 @@ export function parseSettings(value: unknown): ReaderSettings {
     tajweed: bool("tajweed", DEFAULT_SETTINGS.tajweed),
     translation,
     autoAdvanceAudio: bool("autoAdvanceAudio", DEFAULT_SETTINGS.autoAdvanceAudio),
+    followAudio: bool("followAudio", DEFAULT_SETTINGS.followAudio),
   };
 }
 

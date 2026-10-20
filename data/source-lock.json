@@ -1,22 +1,22 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "source": {
     "repository": "https://github.com/semarketir/quranjson",
     "commit": "7ca6f46ec9a1a029cdb220c2531d509f4a5b5e98",
     "license": "MIT",
     "runtimeTree": "public/quran",
-    "manifestSha256": "67b6f8844763fb4bd54ce05cb2b5dc1bf04c68886a7b5fae0e37403f45ef70ed"
+    "manifestSha256": "81af44200a8e1d308516eb4df3b46e11a4d761f6e0e64beac4381adb2ab8cd21"
   },
   "input": {
-    "files": 687,
-    "bytes": 9174273,
-    "treeSha256": "d87bcf92ccda0d3161971f707e6885330ae085982e592402f66d22ddc9373996"
+    "files": 3765,
+    "bytes": 45066894,
+    "treeSha256": "c7a50f3665c2d488135d05cdb536c1d6d80e49c28e26e366c21ae6d7db0900d8"
   },
   "output": {
     "database": "assets/data/quran.db",
-    "databaseSha256": "8cdec835929a4c61a92124ab7789da364a5e1d5860e53cca9f9e20a968aa2297",
-    "databaseBytes": 18546688,
-    "dataVersion": "8cdec835929a4c61"
+    "databaseSha256": "27f4cb2c37ccdc5e1000dc829322d0ff92dc88dcd64a39f52b8270fb416c984b",
+    "databaseBytes": 64446464,
+    "dataVersion": "27f4cb2c37ccdc5e"
   },
   "font": {
     "file": "assets/fonts/AmiriQuran-Regular.ttf",
@@ -26,10 +26,38 @@
     "surahs": 114,
     "arabicRows": 6348,
     "numberedVerses": 6236,
+    "translationDatasets": 30,
     "translationRows": {
       "en": 6348,
       "id": 6348,
-      "ar": 6236
+      "ar": 6236,
+      "ar.jalalayn": 6236,
+      "en.sahih": 6236,
+      "en.yusufali": 6236,
+      "en.pickthall": 6236,
+      "en.hilali": 6236,
+      "en.ahmedali": 6236,
+      "en.daryabadi": 6236,
+      "en.maududi": 6236,
+      "en.mubarakpuri": 6236,
+      "en.wahiduddin": 6236,
+      "en.qaribullah": 6236,
+      "en.ahmedraza": 6236,
+      "ur.kanzuliman": 6236,
+      "ur.junagarhi": 6236,
+      "fr.hamidullah": 6236,
+      "es.garcia": 6236,
+      "de.aburida": 6236,
+      "tr.diyanet": 6236,
+      "bn.bengali": 6236,
+      "fa.khorramdel": 6236,
+      "ru.kuliev": 6236,
+      "ms.basmeih": 6236,
+      "hi.hindi": 6236,
+      "pt.elhayek": 6236,
+      "sv.bernstrom": 6236,
+      "it.piccardo": 6236,
+      "sw.barwani": 6236
     },
     "tajweedRanges": 60841,
     "tajweedUnavailable": 147,

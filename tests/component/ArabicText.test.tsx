@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react-native";
 import { ArabicText } from "../../src/components/quran/ArabicText";
 import { renderTajweed } from "../../src/features/quran/tajweed";
 import { TAJWEED_RULES } from "../../src/features/quran/tajweed-rules";
+import { TAJWEED_COLORS } from "../../src/theme/palette";
 
 jest.mock("../../src/theme/ThemeProvider", () => ({
   useTheme: () => ({
@@ -57,6 +58,20 @@ describe("ArabicText", () => {
       <ArabicText text={KEPT_TEXT} segments={rendered.segments} showTajweed size={34} />,
     );
     expect(flatten(view.toJSON())).toBe(KEPT_TEXT);
+  });
+
+  it("paints the source rule with its palette colour", async () => {
+    const rendered = renderTajweed(
+      KEPT_TEXT,
+      [{ start: 0, end: 8, rule: "hamzat_wasl" }],
+      { knownRules: new Set(Object.keys(TAJWEED_RULES)) },
+    );
+    const view = await render(
+      <ArabicText text={KEPT_TEXT} segments={rendered.segments} showTajweed size={34} />,
+    );
+    const tree = JSON.stringify(view.toJSON());
+    expect(tree).toContain(TAJWEED_COLORS.hamzat_wasl.light.toLowerCase());
+    expect(tree).toContain("underline");
   });
 
   it("keeps the sajdah character at the end of the verse", async () => {

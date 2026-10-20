@@ -17,7 +17,7 @@ async function verify(db: SQLite.SQLiteDatabase, fullCheck: boolean): Promise<vo
   const schema = await db.getFirstAsync<{ value: string }>(
     "SELECT value FROM meta WHERE key = 'schemaVersion'",
   );
-  assert(schema?.value === "1", "The bundled Quran database has an unexpected schema version.");
+  assert(schema?.value === "2", "The bundled Quran database has an unexpected schema version.");
 
   const row = await db.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM surahs");
   assert(Number(row?.n) === 114, "The bundled Quran database does not contain 114 surahs.");
@@ -31,6 +31,14 @@ async function verify(db: SQLite.SQLiteDatabase, fullCheck: boolean): Promise<vo
     "SELECT COUNT(*) AS n FROM verses WHERE has_sajdah = 1",
   );
   assert(Number(sajdah?.n) === 15, "The bundled Quran database is missing sajdah metadata.");
+
+  const datasets = await db.getFirstAsync<{ n: number }>(
+    "SELECT COUNT(DISTINCT dataset) AS n FROM translations",
+  );
+  assert(
+    Number(datasets?.n) >= 20,
+    "The bundled Quran database is missing its translation datasets.",
+  );
 
   if (fullCheck) {
     const check = await db.getFirstAsync<Record<string, string>>("PRAGMA quick_check");

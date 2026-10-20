@@ -15,8 +15,14 @@ import {
   useAudioPlayerStatus,
   type AudioStatus,
 } from "expo-audio";
+import * as Network from "expo-network";
 import type { SurahMeta, Verse } from "../../types/quran";
 import { useSettings } from "../settings/SettingsProvider";
+import {
+  AUDIO_TIMEOUT_MESSAGE,
+  OFFLINE_AUDIO_MESSAGE,
+  canStreamAudio,
+} from "./connectivity";
 
 export type AudioTrack = {
   surah: SurahMeta;
@@ -44,9 +50,24 @@ type AudioProgressValue = {
 const AudioContext = createContext<AudioContextValue | null>(null);
 const AudioProgressContext = createContext<AudioProgressValue | null>(null);
 
+const LOAD_TIMEOUT_MS = 12_000;
+
 function audioError(status: AudioStatus, local: string | null): string | null {
   if (local) return local;
-  return status.error ?? null;
+  if (status.error) {
+    return "The recitation could not be played. Check your connection and try again.";
+  }
+  return null;
+}
+
+async function hasConnection(): Promise<boolean> {
+  try {
+    return canStreamAudio(await Network.getNetworkStateAsync());
+  } catch {
+    // If the network state itself cannot be read, let the player try; the
+    // timeout produces an explicit error instead of an endless spinner.
+    return true;
+  }
 }
 
 export function AudioProvider({ children }: { children: ReactNode }) {
@@ -59,6 +80,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const currentTimeRef = useRef(0);
   const autoAdvanceRef = useRef(settings.autoAdvanceAudio);
   const playRef = useRef<(surah: SurahMeta, verse: Verse, queue: Verse[]) => void>(() => {});
+  const requestRef = useRef(0);
 
   currentRef.current = current;
   currentTimeRef.current = status.currentTime;
@@ -90,35 +112,57 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
   const playVerse = useCallback(
     (surah: SurahMeta, verse: Verse, queue: Verse[]) => {
+      const request = ++requestRef.current;
+
       if (!verse.audio) {
+        setCurrent({ surah, verse, queue });
         setLocalError(
           verse.audioUnavailableReason ?? "The source has no recitation for this verse.",
         );
         return;
       }
-      try {
-        setLocalError(null);
-        player.replace({ uri: verse.audio.url });
-        player.play();
-        setCurrent({ surah, verse, queue });
-      } catch (cause) {
-        setLocalError(
-          cause instanceof Error ? cause.message : "The recitation could not be started.",
-        );
-      }
+
+      // Show the track immediately so any failure has somewhere to appear.
+      setLocalError(null);
+      setCurrent({ surah, verse, queue });
+
+      void (async () => {
+        if (!(await hasConnection())) {
+          if (request !== requestRef.current) return;
+          player.pause();
+          setLocalError(OFFLINE_AUDIO_MESSAGE);
+          return;
+        }
+        if (request !== requestRef.current) return;
+        try {
+          player.replace({ uri: verse.audio!.url });
+          player.play();
+        } catch {
+          if (request !== requestRef.current) return;
+          player.pause();
+          setLocalError(AUDIO_TIMEOUT_MESSAGE);
+        }
+      })();
     },
     [player],
   );
   playRef.current = playVerse;
 
   const toggle = useCallback(() => {
-    if (!currentRef.current) return;
+    const track = currentRef.current;
+    if (!track) return;
+    if (localError) {
+      // Retrying from the play control re-checks the connection instead of
+      // leaving the player spinning forever.
+      playRef.current(track.surah, track.verse, track.queue);
+      return;
+    }
     if (status.playing) {
       player.pause();
     } else {
       player.play();
     }
-  }, [player, status.playing]);
+  }, [localError, player, status.playing]);
 
   const seek = useCallback(
     async (seconds: number) => {
@@ -160,11 +204,25 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   }, [seek]);
 
   const stop = useCallback(() => {
+    requestRef.current++;
     player.pause();
     void player.seekTo(0).catch(() => {});
     setCurrent(null);
     setLocalError(null);
   }, [player]);
+
+  const error = audioError(status, localError);
+  const loading = Boolean(current) && !status.isLoaded && !error;
+
+  // A stream that never reports "loaded" or an error must not spin forever.
+  useEffect(() => {
+    if (!current || status.isLoaded || error) return;
+    const timer = setTimeout(() => {
+      setLocalError((existing) => existing ?? AUDIO_TIMEOUT_MESSAGE);
+      player.pause();
+    }, LOAD_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [current, error, player, status.isLoaded]);
 
   useEffect(() => {
     if (!status.didJustFinish) return;
@@ -183,9 +241,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     }
   }, [status.didJustFinish, player]);
 
-  const error = audioError(status, localError);
   const playing = Boolean(current) && status.playing;
-  const loading = Boolean(current) && !status.isLoaded && !error;
 
   const state = useMemo<AudioContextValue>(
     () => ({

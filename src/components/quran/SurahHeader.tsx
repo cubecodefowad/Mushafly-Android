@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "../../theme/ThemeProvider";
+import { translationInfo } from "../../features/settings/settings";
 import type { ReaderSettings, Surah } from "../../types/quran";
 import { ArabicText } from "./ArabicText";
 import { AppText } from "../ui/AppText";
@@ -22,7 +23,8 @@ export function SurahHeader({
 }) {
   const { colors, fonts } = useTheme();
   const bismillah = surah.bismillah;
-  const bismillahTranslation = bismillah?.translations[settings.translation] ?? null;
+  const bismillahTranslation = bismillah?.translation ?? null;
+  const translationIsRtl = translationInfo(settings.translation).direction === "rtl";
   const sajdahVerses = surah.verses.filter((verse) => verse.hasSajdah).map((verse) => verse.number);
 
   return (
@@ -78,8 +80,7 @@ export function SurahHeader({
                 styles.bismillahTranslation,
                 {
                   color: colors.muted,
-                  fontFamily:
-                    settings.translation === "ar" ? fonts.arabic : fonts.serif,
+                  fontFamily: translationIsRtl ? fonts.arabic : fonts.serif,
                   fontSize: settings.translationSize,
                   lineHeight: Math.round(settings.translationSize * 1.7),
                 },

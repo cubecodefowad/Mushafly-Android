@@ -1,7 +1,7 @@
 import type { SQLiteBindValue } from "expo-sqlite";
 import { renderTajweed, type RawTajweedRange } from "./tajweed";
 import { TAJWEED_RULES } from "./tajweed-rules";
-import { excerptFor, normalize } from "./normalize";
+import { excerptFor, normalize, normalizeForSearch } from "./normalize";
 import type {
   AudioReference,
   SearchResult,
@@ -34,9 +34,6 @@ type VerseRow = {
   surah: number;
   verse: number;
   arabic: string;
-  en: string;
-  id: string;
-  ar: string | null;
   tajweed_json: string;
   has_sajdah: number;
   audio_file: string;
@@ -44,13 +41,20 @@ type VerseRow = {
   audio_size: number;
 };
 
-type SearchRow = VerseRow & {
-  arabic_search: string;
-  name: string;
-  arabic_name: string;
+type TranslationRow = {
+  surah: number;
+  verse: number;
+  text: string;
 };
 
 const surahCache = new WeakMap<QuranDatabase, SurahMeta[]>();
+const translationIndexCache = new WeakMap<
+  QuranDatabase,
+  Map<string, TranslationIndexEntry[]>
+>();
+const arabicTextCache = new WeakMap<QuranDatabase, Map<string, string>>();
+
+type TranslationIndexEntry = TranslationRow & { search: string };
 
 function toMeta(row: SurahRow): SurahMeta {
   let juz: SurahMeta["juz"] = [];
@@ -85,7 +89,11 @@ function audioFor(row: VerseRow): { audio: AudioReference | null; reason?: strin
   };
 }
 
-function toVerse(row: VerseRow): Verse {
+function toVerse(
+  row: VerseRow,
+  translation: string | null,
+  language: TranslationLanguage,
+): Verse {
   let ranges: RawTajweedRange[] | undefined;
   try {
     const parsed = JSON.parse(row.tajweed_json);
@@ -102,11 +110,8 @@ function toVerse(row: VerseRow): Verse {
     number: row.verse,
     key: `verse_${row.verse}`,
     arabic: row.arabic,
-    translations: {
-      en: row.en || null,
-      id: row.id || null,
-      ar: row.ar ?? null,
-    },
+    translation,
+    translationLanguage: language,
     tajweed,
     hasSajdah: row.has_sajdah === 1,
     audio,
@@ -138,7 +143,24 @@ export async function getSurahMeta(
   return all.find((entry) => entry.number === number) ?? null;
 }
 
-export async function getSurah(db: QuranDatabase, number: number): Promise<Surah> {
+async function translationsForSurah(
+  db: QuranDatabase,
+  surahNumber: number,
+  language: TranslationLanguage,
+): Promise<Map<number, string>> {
+  const rows = await db.getAllAsync<{ verse: number; text: string }>(
+    `SELECT verse, text FROM translations WHERE dataset = ? AND surah = ? ORDER BY verse`,
+    language,
+    surahNumber,
+  );
+  return new Map(rows.map((row) => [row.verse, row.text]));
+}
+
+export async function getSurah(
+  db: QuranDatabase,
+  number: number,
+  language: TranslationLanguage,
+): Promise<Surah> {
   if (!Number.isInteger(number) || number < 1 || number > 114) {
     throw new Error(`Invalid surah number: ${String(number)}`);
   }
@@ -147,7 +169,7 @@ export async function getSurah(db: QuranDatabase, number: number): Promise<Surah
   if (!meta) throw new Error(`Surah ${number} is missing from the database.`);
 
   const rows = await db.getAllAsync<VerseRow>(
-    `SELECT surah, verse, arabic, en, id, ar, tajweed_json, has_sajdah,
+    `SELECT surah, verse, arabic, tajweed_json, has_sajdah,
             audio_file, audio_url, audio_size
      FROM verses WHERE surah = ? ORDER BY verse`,
     number,
@@ -156,7 +178,10 @@ export async function getSurah(db: QuranDatabase, number: number): Promise<Surah
     throw new Error(`Surah ${number} has no verse rows in the database.`);
   }
 
-  const items = rows.map(toVerse);
+  const translations = await translationsForSurah(db, number, language);
+  const items = rows.map((row) =>
+    toVerse(row, translations.get(row.verse) ?? null, language),
+  );
   const bismillah = items.find((verse) => verse.number === 0) ?? null;
   const verses = items.filter((verse) => verse.number > 0);
   const expected = meta.verseCount + (meta.bismillah ? 1 : 0);
@@ -196,15 +221,23 @@ export async function getVerse(
   db: QuranDatabase,
   surahNumber: number,
   verseNumber: number,
+  language: TranslationLanguage,
 ): Promise<Verse | null> {
   const row = await db.getFirstAsync<VerseRow>(
-    `SELECT surah, verse, arabic, en, id, ar, tajweed_json, has_sajdah,
+    `SELECT surah, verse, arabic, tajweed_json, has_sajdah,
             audio_file, audio_url, audio_size
      FROM verses WHERE surah = ? AND verse = ?`,
     surahNumber,
     verseNumber,
   );
-  return row ? toVerse(row) : null;
+  if (!row) return null;
+  const translation = await db.getFirstAsync<{ text: string }>(
+    `SELECT text FROM translations WHERE dataset = ? AND surah = ? AND verse = ?`,
+    language,
+    surahNumber,
+    verseNumber,
+  );
+  return toVerse(row, translation?.text ?? null, language);
 }
 
 export type VersePreview = {
@@ -223,14 +256,23 @@ export async function getVersePreview(
   verseNumber: number,
   language: TranslationLanguage,
 ): Promise<VersePreview | null> {
-  const row = await db.getFirstAsync<
-    VerseRow & { name: string; arabic_name: string }
-  >(
-    `SELECT v.surah, v.verse, v.arabic, v.en, v.id, v.ar, v.tajweed_json,
-            v.has_sajdah, v.audio_file, v.audio_url, v.audio_size,
-            s.name, s.arabic_name
-     FROM verses v JOIN surahs s ON s.number = v.surah
+  const row = await db.getFirstAsync<{
+    surah: number;
+    verse: number;
+    arabic: string;
+    has_sajdah: number;
+    name: string;
+    arabic_name: string;
+    translation: string | null;
+  }>(
+    `SELECT v.surah, v.verse, v.arabic, v.has_sajdah,
+            s.name, s.arabic_name, t.text AS translation
+     FROM verses v
+     JOIN surahs s ON s.number = v.surah
+     LEFT JOIN translations t
+       ON t.dataset = ? AND t.surah = v.surah AND t.verse = v.verse
      WHERE v.surah = ? AND v.verse = ?`,
+    language,
     surahNumber,
     verseNumber,
   );
@@ -241,7 +283,7 @@ export async function getVersePreview(
     surahName: row.name,
     surahArabicName: row.arabic_name,
     arabic: row.arabic,
-    translation: row[language] ?? null,
+    translation: row.translation ?? null,
     hasSajdah: row.has_sajdah === 1,
   };
 }
@@ -269,44 +311,105 @@ export async function getVersePreviews(
   );
 }
 
+async function translationIndex(
+  db: QuranDatabase,
+  dataset: TranslationLanguage,
+): Promise<TranslationIndexEntry[]> {
+  let byDataset = translationIndexCache.get(db);
+  if (!byDataset) {
+    byDataset = new Map();
+    translationIndexCache.set(db, byDataset);
+  }
+  const cached = byDataset.get(dataset);
+  if (cached) return cached;
+  const rows = await db.getAllAsync<TranslationRow>(
+    `SELECT surah, verse, text FROM translations WHERE dataset = ? ORDER BY surah, verse`,
+    dataset,
+  );
+  const index = rows.map((row) => ({ ...row, search: normalizeForSearch(row.text) }));
+  byDataset.set(dataset, index);
+  return index;
+}
+
 export async function searchVerses(
   db: QuranDatabase,
   rawQuery: string,
   language: TranslationLanguage,
   limit = 120,
 ): Promise<SearchResult[]> {
-  const query = normalize(rawQuery.trim());
-  if (query.length < 2) return [];
+  const arabicQuery = normalize(rawQuery.trim());
+  const textQuery = normalizeForSearch(rawQuery.trim());
+  if (textQuery.length < 2 && arabicQuery.length < 2) return [];
 
-  const rows = await db.getAllAsync<SearchRow>(
-    `SELECT v.surah, v.verse, v.arabic, v.arabic_search, v.en, v.id, v.ar,
-            v.tajweed_json, v.has_sajdah, v.audio_file, v.audio_url, v.audio_size,
-            s.name, s.arabic_name
-     FROM verses v JOIN surahs s ON s.number = v.surah
-     WHERE instr(v.arabic_search, ?) > 0 OR instr(v.en_search, ?) > 0
-     ORDER BY v.surah, v.verse
-     LIMIT ?`,
-    query,
-    query,
-    limit,
-  );
+  const metas = await listSurahs(db);
+  const results = new Map<string, SearchResult>();
 
-  return rows.map((row) => {
-    const matchField = row.arabic_search.includes(query) ? "arabic" : "translation";
-    const translation =
-      language === "en" ? row.en : language === "id" ? row.id : row.ar;
-    return {
-      surahNumber: row.surah,
-      verseNumber: row.verse,
-      surahName: row.name,
-      surahArabicName: row.arabic_name,
-      arabic: excerptFor(row.arabic, matchField === "arabic" ? query : "", 190),
-      translation: translation
-        ? excerptFor(translation, matchField === "translation" ? query : "", 190)
-        : null,
-      matchField,
-    };
-  });
+  if (arabicQuery.length >= 2) {
+    const rows = await db.getAllAsync<{ surah: number; verse: number; arabic: string }>(
+      `SELECT surah, verse, arabic FROM verses
+       WHERE verse > 0 AND instr(arabic_search, ?) > 0
+       ORDER BY surah, verse
+       LIMIT ?`,
+      arabicQuery,
+      limit,
+    );
+    for (const row of rows) {
+      const meta = metas[row.surah - 1];
+      results.set(`${row.surah}:${row.verse}`, {
+        surahNumber: row.surah,
+        verseNumber: row.verse,
+        surahName: meta?.name ?? `Surah ${row.surah}`,
+        surahArabicName: meta?.arabicName ?? "",
+        arabic: excerptFor(row.arabic, arabicQuery, 190),
+        translation: null,
+        matchField: "arabic",
+      });
+    }
+  }
+
+  if (textQuery.length >= 2) {
+    const index = await translationIndex(db, language);
+    let arabicText = arabicTextCache.get(db);
+    if (!arabicText) {
+      const rows = await db.getAllAsync<{ surah: number; verse: number; arabic: string }>(
+        `SELECT surah, verse, arabic FROM verses`,
+      );
+      arabicText = new Map(
+        rows.map((row) => [`${row.surah}:${row.verse}`, row.arabic]),
+      );
+      arabicTextCache.set(db, arabicText);
+    }
+    for (const entry of index) {
+      // The unnumbered Bismillah row is part of the page header, not a
+      // searchable verse reference.
+      if (entry.verse === 0) continue;
+      if (!entry.search.includes(textQuery)) continue;
+      const key = `${entry.surah}:${entry.verse}`;
+      const existing = results.get(key);
+      if (existing) {
+        existing.translation = excerptFor(entry.text, textQuery, 190);
+        continue;
+      }
+      const meta = metas[entry.surah - 1];
+      results.set(key, {
+        surahNumber: entry.surah,
+        verseNumber: entry.verse,
+        surahName: meta?.name ?? `Surah ${entry.surah}`,
+        surahArabicName: meta?.arabicName ?? "",
+        arabic: excerptFor(arabicText.get(key) ?? "", "", 190),
+        translation: excerptFor(entry.text, textQuery, 190),
+        matchField: "translation",
+      });
+    }
+  }
+
+  return [...results.values()]
+    .sort((a, b) =>
+      a.surahNumber === b.surahNumber
+        ? a.verseNumber - b.verseNumber
+        : a.surahNumber - b.surahNumber,
+    )
+    .slice(0, limit);
 }
 
 export async function getSajdahReferences(

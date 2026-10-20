@@ -65,8 +65,10 @@ function AppShell() {
       >
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="surah/[number]" />
-        <Stack.Screen name="search" options={{ animation: "fade_from_bottom" }} />
         <Stack.Screen name="about" />
+        <Stack.Screen name="tajweed" />
+        <Stack.Screen name="terms" />
+        <Stack.Screen name="privacy" />
       </Stack>
       <AudioBar bottomOffset={audioBarBottom} />
     </>

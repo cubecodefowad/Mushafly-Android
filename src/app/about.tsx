@@ -9,6 +9,7 @@ import { Screen } from "../components/ui/Screen";
 import { SajdahBadge } from "../components/quran/SajdahBadge";
 import { DATA_LOCK, SOURCE_INFO } from "../data/generated/source";
 import { SAJDAH_VERSES } from "../features/quran/text-marks";
+import { groupedTranslations, translationLabel } from "../features/settings/settings";
 import { useTheme } from "../theme/ThemeProvider";
 import { formatCount, surahHref } from "../utils/reference";
 
@@ -63,7 +64,8 @@ export default function AboutScreen() {
         <AppText tone="muted" style={styles.intro}>
           Mushafly displays text it did not write. This page states where every
           part of it comes from, what has been checked, what has not, and how to
-          report a possible problem.
+          report a possible problem. The reader bundles {SOURCE_INFO.translations.length}{" "}
+          datasets; the website carries the full Tanzil registry.
         </AppText>
 
         <Card style={styles.notice}>
@@ -111,17 +113,19 @@ export default function AboutScreen() {
           <AppText variant="label" style={styles.subLabel}>
             Translations
           </AppText>
-          {SOURCE_INFO.translations.map((entry) => (
-            <AppText
-              key={entry.languageCode}
-              variant="caption"
-              tone="muted"
-              style={styles.body}
-            >
-              {entry.languageCode === "ar" ? "Arabic commentary" : entry.label}:{" "}
-              {entry.translator} · {entry.name} ({entry.id}, {entry.source})
+          {groupedTranslations().map((group) => (
+            <AppText key={group.label} variant="caption" tone="muted" style={styles.body}>
+              {group.label}:{" "}
+              {group.translations
+                .map((entry) => `${translationLabel(entry)} (${entry.translator})`)
+                .join(" · ")}
             </AppText>
           ))}
+          <AppText variant="caption" tone="muted" style={styles.footnote}>
+            Every bundled dataset is a third-party work under its own terms. Tanzil
+            datasets are used under Tanzil.net&apos;s terms; the quranjson datasets
+            under the MIT license with the attributions above.
+          </AppText>
           <AppText variant="label" style={styles.subLabel}>
             Recitation and font
           </AppText>
@@ -270,6 +274,40 @@ export default function AboutScreen() {
           />
         </Card>
 
+        <AppText variant="heading" style={styles.sectionTitle}>
+          Legal and reference
+        </AppText>
+        <Card padded={false} style={styles.linkCard}>
+          {[
+            { label: "Tajweed and Quranic marks", value: "Every colour and sign explained", href: "/tajweed" as const },
+            { label: "Terms of Service", value: "What the app is and what it does not claim", href: "/terms" as const },
+            { label: "Privacy Policy", value: "What is stored, and what leaves the device", href: "/privacy" as const },
+          ].map((entry) => (
+            <Pressable
+              key={entry.href}
+              onPress={() => router.push(entry.href)}
+              accessibilityRole="button"
+              accessibilityLabel={`${entry.label}. ${entry.value}`}
+              android_ripple={{ color: colors.highlight }}
+              style={({ pressed }) => [
+                styles.legalRow,
+                {
+                  borderBottomColor: colors.border,
+                  backgroundColor: pressed ? colors.surfaceMuted : "transparent",
+                },
+              ]}
+            >
+              <View style={styles.linkCopy}>
+                <AppText variant="label">{entry.label}</AppText>
+                <AppText variant="caption" tone="muted">
+                  {entry.value}
+                </AppText>
+              </View>
+              <Icon name="chevron-forward" size={16} color={colors.muted} />
+            </Pressable>
+          ))}
+        </Card>
+
         <AppText variant="caption" tone="muted" style={styles.bottomNote}>
           Potential software defects are handled separately from legitimate
           differences between translations. If a report is about translation
@@ -364,6 +402,17 @@ const styles = StyleSheet.create({
   },
   linkCopy: {
     flex: 1,
+  },
+  linkCard: {
+    paddingHorizontal: 16,
+  },
+  legalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 13,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    minHeight: 56,
   },
   bottomNote: {
     marginTop: 22,

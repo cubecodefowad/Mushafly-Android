@@ -1,14 +1,33 @@
-export type TranslationLanguage = "en" | "id" | "ar";
+/** A dataset key such as `en`, `en.sahih` or `ur.kanzuliman`. */
+export type TranslationLanguage = string;
 
 export type TranslationInfo = {
   languageCode: TranslationLanguage;
   id: string;
+  /** Language label used by the compact selector. */
   label: string;
+  /** Short dataset name (for example "Saheeh International"). */
+  shortName?: string;
   name: string;
   translator: string;
   source: string;
   lastUpdate?: string;
   direction: "ltr" | "rtl";
+  /** BCP 47 code for the translated text itself. */
+  htmlLang?: string;
+  /** Display name of the language, used to group the selector. */
+  language?: string;
+  /** Selector group label. */
+  group?: string;
+  /** Non-empty verse rows in the dataset. */
+  rows?: number;
+  /** Surahs covered by the dataset. */
+  suras?: number;
+};
+
+export type TranslationGroup = {
+  label: string;
+  translations: TranslationInfo[];
 };
 
 export type JuzRange = {
@@ -58,7 +77,10 @@ export type Verse = {
   number: number;
   key: string;
   arabic: string;
-  translations: Record<TranslationLanguage, string | null>;
+  /** The selected dataset's text for this verse, or null when it has no row. */
+  translation: string | null;
+  /** The dataset `translation` was read from. */
+  translationLanguage: TranslationLanguage;
   tajweed: TajweedRender;
   hasSajdah: boolean;
   audio: AudioReference | null;
@@ -106,6 +128,8 @@ export type ReaderSettings = {
   tajweed: boolean;
   translation: TranslationLanguage;
   autoAdvanceAudio: boolean;
+  /** Follow the verse being recited while it plays. */
+  followAudio: boolean;
 };
 
 export type BookmarkRecord = {

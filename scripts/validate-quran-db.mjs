@@ -12,6 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { DatabaseSync } from "node:sqlite";
+import zlib from "node:zlib";
 import { renderTajweed } from "../src/features/quran/tajweed.ts";
 import { normalize } from "../src/features/quran/normalize.ts";
 import { TAJWEED_RULES } from "../src/features/quran/tajweed-rules.ts";
@@ -63,7 +64,7 @@ const db = new DatabaseSync(DB_PATH, { readOnly: true });
 const meta = Object.fromEntries(
   db.prepare("SELECT key, value FROM meta").all().map((row) => [row.key, row.value]),
 );
-if (meta.schemaVersion !== "2") fail(`Unexpected schema version ${meta.schemaVersion}`);
+if (meta.schemaVersion !== "3") fail(`Unexpected schema version ${meta.schemaVersion}`);
 if (meta.sourceCommit !== lock.source.commit) fail("Database source commit does not match the lock.");
 if (meta.sourceRepository !== lock.source.repository) fail("Database source repository mismatch.");
 if (meta.sourceLicense !== "MIT") fail(`Unexpected source license ${meta.sourceLicense}`);
@@ -92,8 +93,7 @@ const counts = [
   ["numbered", "SELECT COUNT(*) AS n FROM verses WHERE verse > 0", 6236],
   ["bismillah", "SELECT COUNT(*) AS n FROM verses WHERE verse = 0", 112],
   ["sajdah", "SELECT COUNT(*) AS n FROM verses WHERE has_sajdah = 1", 15],
-  ["translation datasets", "SELECT COUNT(DISTINCT dataset) AS n FROM translations", datasets.length],
-  ["translation rows", "SELECT COUNT(*) AS n FROM translations", expectedTranslationRows],
+  ["translation datasets", "SELECT COUNT(*) AS n FROM translation_datasets", datasets.length],
 ];
 for (const [label, sql, expected] of counts) {
   const actual = Number(db.prepare(sql).get().n);
@@ -206,37 +206,56 @@ if (JSON.stringify(sajdah) !== JSON.stringify(expectedSajdah)) {
 }
 if (unavailable !== 147) fail(`Tajweed-unavailable verses ${unavailable} != pinned 147`);
 
-// Translation datasets: every row belongs to a real verse, every dataset has
-// the pinned row count, and no dataset invents a Bismillah row.
-const translationRowsByDataset = db
-  .prepare("SELECT dataset, COUNT(*) AS n FROM translations GROUP BY dataset")
+// Translation datasets: each one is a gzipped JSON payload. Decompress every
+// payload, check that its rows belong to real verses, that the pinned row count
+// is intact, that no verse text is empty, and that only en and id carry a
+// Bismillah row.
+const datasetPayloads = db
+  .prepare("SELECT dataset, payload FROM translation_datasets")
   .all();
-for (const entry of translationRowsByDataset) {
-  if (!(entry.dataset in translationRows)) fail(`Unexpected translation dataset ${entry.dataset}`);
-  if (entry.n !== translationRows[entry.dataset]) {
-    fail(`Dataset ${entry.dataset} has ${entry.n} rows, expected ${translationRows[entry.dataset]}`);
+const verseKeys = new Set(
+  db.prepare("SELECT surah, verse FROM verses").all().map((row) => `${row.surah}:${row.verse}`),
+);
+const storedTranslations = new Map();
+let bismillahTranslations = 0;
+let emptyTranslations = 0;
+let orphanTranslations = 0;
+let decodedTranslationRows = 0;
+for (const row of datasetPayloads) {
+  if (!(row.dataset in translationRows)) fail(`Unexpected translation dataset ${row.dataset}`);
+  let payload;
+  try {
+    payload = JSON.parse(zlib.gunzipSync(row.payload).toString("utf8"));
+  } catch {
+    fail(`Translation dataset ${row.dataset} is not a valid gzipped JSON payload`);
   }
+  let count = 0;
+  for (const [surahKey, bucket] of Object.entries(payload)) {
+    const surahNumber = Number(surahKey);
+    for (const [verseKey, text] of Object.entries(bucket)) {
+      const verseNumber = Number(verseKey);
+      if (typeof text !== "string" || text.trim().length === 0) emptyTranslations++;
+      if (verseNumber === 0) bismillahTranslations++;
+      if (!verseKeys.has(`${surahNumber}:${verseNumber}`)) orphanTranslations++;
+      storedTranslations.set(`${row.dataset}|${surahNumber}|${verseNumber}`, text);
+      count++;
+    }
+  }
+  if (count !== translationRows[row.dataset]) {
+    fail(`Dataset ${row.dataset} has ${count} rows, expected ${translationRows[row.dataset]}`);
+  }
+  decodedTranslationRows += count;
+}
+if (decodedTranslationRows !== expectedTranslationRows) {
+  fail(`Decoded translation rows ${decodedTranslationRows} != ${expectedTranslationRows}`);
 }
 for (const dataset of datasets) {
-  if (!translationRowsByDataset.some((entry) => entry.dataset === dataset)) {
-    fail(`Translation dataset ${dataset} is empty`);
+  if (!datasetPayloads.some((entry) => entry.dataset === dataset)) {
+    fail(`Translation dataset ${dataset} is missing`);
   }
 }
-const orphanTranslations = db
-  .prepare(
-    `SELECT COUNT(*) AS n FROM translations t
-     LEFT JOIN verses v ON v.surah = t.surah AND v.verse = t.verse
-     WHERE v.surah IS NULL`,
-  )
-  .get().n;
 if (orphanTranslations !== 0) fail(`${orphanTranslations} translation rows point at missing verses`);
-const emptyTranslations = db
-  .prepare("SELECT COUNT(*) AS n FROM translations WHERE text IS NULL OR length(trim(text)) = 0")
-  .get().n;
 if (emptyTranslations !== 0) fail(`${emptyTranslations} translation rows are empty`);
-const bismillahTranslations = db
-  .prepare("SELECT COUNT(*) AS n FROM translations WHERE verse = 0")
-  .get().n;
 if (bismillahTranslations !== 224) {
   fail(`Bismillah translation rows ${bismillahTranslations} != 224 (only en and id carry one)`);
 }
@@ -296,12 +315,6 @@ if (HAS_SOURCE) {
         ),
       ]),
     );
-    const storedTranslations = new Map(
-      db
-        .prepare("SELECT dataset, verse, text FROM translations WHERE surah = ?")
-        .all(number)
-        .map((entry) => [`${entry.dataset}|${entry.verse}`, entry.text]),
-    );
     for (const row of verses.filter((entry) => entry.surah === number)) {
       const key = `verse_${row.verse}`;
       if (row.arabic !== arabic.verse[key]) fail(`Arabic drift at ${number}:${key}`);
@@ -310,7 +323,7 @@ if (HAS_SOURCE) {
       }
       for (const dataset of datasets) {
         const sourceText = translationSources.get(dataset).verse[key];
-        const storedText = storedTranslations.get(`${dataset}|${row.verse}`);
+        const storedText = storedTranslations.get(`${dataset}|${number}|${row.verse}`);
         if (sourceText === undefined) {
           if (storedText !== undefined) fail(`${dataset} invented a row at ${number}:${key}`);
           continue;

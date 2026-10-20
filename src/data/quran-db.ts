@@ -1,7 +1,7 @@
 import { Asset } from "expo-asset";
 import { Directory, File, Paths } from "expo-file-system";
 import * as SQLite from "expo-sqlite";
-import { DATA_VERSION } from "./generated/source";
+import { DATA_VERSION, SOURCE_INFO } from "./generated/source";
 
 const DATA_DIRECTORY = new Directory(Paths.document, "mushafly");
 const DATABASE_FILE = new File(DATA_DIRECTORY, "quran.db");
@@ -17,7 +17,7 @@ async function verify(db: SQLite.SQLiteDatabase, fullCheck: boolean): Promise<vo
   const schema = await db.getFirstAsync<{ value: string }>(
     "SELECT value FROM meta WHERE key = 'schemaVersion'",
   );
-  assert(schema?.value === "2", "The bundled Quran database has an unexpected schema version.");
+  assert(schema?.value === "3", "The bundled Quran database has an unexpected schema version.");
 
   const row = await db.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM surahs");
   assert(Number(row?.n) === 114, "The bundled Quran database does not contain 114 surahs.");
@@ -33,11 +33,11 @@ async function verify(db: SQLite.SQLiteDatabase, fullCheck: boolean): Promise<vo
   assert(Number(sajdah?.n) === 15, "The bundled Quran database is missing sajdah metadata.");
 
   const datasets = await db.getFirstAsync<{ n: number }>(
-    "SELECT COUNT(DISTINCT dataset) AS n FROM translations",
+    "SELECT COUNT(*) AS n FROM translation_datasets",
   );
   assert(
-    Number(datasets?.n) >= 20,
-    "The bundled Quran database is missing its translation datasets.",
+    Number(datasets?.n) === Object.keys(SOURCE_INFO.counts.translationRows).length,
+    "The bundled Quran database does not contain every translation edition.",
   );
 
   if (fullCheck) {

@@ -200,6 +200,27 @@ describe("Quran repository against the shipped database", () => {
     expect(surah.verses[0].translation).toBeTruthy();
   });
 
+  it("reads every bundled edition, including the six Urdu datasets", async () => {
+    const urdu = [
+      "ur.kanzuliman",
+      "ur.junagarhi",
+      "ur.maududi",
+      "ur.ahmedali",
+      "ur.jalandhry",
+      "ur.qadri",
+    ] as const;
+    for (const dataset of urdu) {
+      const surah = await getSurah(adapter, 1, dataset);
+      expect(surah.verses).toHaveLength(7);
+      expect(surah.verses[0].translation).toMatch(/[\u0600-\u06FF]/);
+      expect(surah.verses[0].translationLanguage).toBe(dataset);
+    }
+    // Editions the 1.1.0 build did not bundle at all.
+    expect((await getSurah(adapter, 1, "ur.qadri")).verses[0].translation).not.toBe(
+      (await getSurah(adapter, 1, "ur.maududi")).verses[0].translation,
+    );
+  });
+
   it("searches whichever translation dataset is selected", async () => {
     const saheeh = await searchVerses(adapter, "the most merciful", "en.sahih");
     expect(saheeh.length).toBeGreaterThan(0);

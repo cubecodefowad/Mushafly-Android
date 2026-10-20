@@ -1,5 +1,7 @@
 import * as Haptics from "expo-haptics";
+import { NavigationBar } from "expo-navigation-bar";
 import { router, useLocalSearchParams } from "expo-router";
+import { setStatusBarHidden } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -63,6 +65,7 @@ export default function SurahReaderScreen() {
   const [selected, setSelected] = useState<Verse | null>(null);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [translationOpen, setTranslationOpen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const listRef = useRef<FlatList<Verse>>(null);
   const lastSaved = useRef(0);
   const surahNumberRef = useRef(surahNumber ?? 0);
@@ -77,6 +80,21 @@ export default function SurahReaderScreen() {
     requestedVerse && surah && requestedVerse <= surah.meta.verseCount
       ? requestedVerse
       : null;
+
+  // Immersive reading: hide the status and navigation bars so only the Mushaf
+  // is on screen. The bars come back when fullscreen is left or the reader is
+  // closed, so the rest of the app never inherits a hidden bar.
+  useEffect(() => {
+    if (Platform.OS === "android") NavigationBar.setHidden(fullscreen);
+    setStatusBarHidden(fullscreen, "fade");
+  }, [fullscreen]);
+
+  useEffect(() => {
+    return () => {
+      if (Platform.OS === "android") NavigationBar.setHidden(false);
+      setStatusBarHidden(false, "fade");
+    };
+  }, []);
 
   const queue = useMemo<Verse[]>(() => {
     if (!surah) return [];
@@ -332,53 +350,67 @@ export default function SurahReaderScreen() {
   );
 
   return (
-    <Screen edges={["top", "left", "right"]}>
-      <AppHeader
-        title={surah.meta.name}
-        subtitle={`Verse ${activeVerse} of ${surah.meta.verseCount}`}
-        right={
-          <View style={styles.toolbarActions}>
-            <IconButton
-              icon="search-outline"
-              label="Search the Quran"
-              onPress={() => router.push("/search")}
-              size={19}
-            />
-            <IconButton
-              icon="language-outline"
-              label={
-                settings.showTranslation ? "Hide translation" : "Show translation"
-              }
-              active={settings.showTranslation}
-              onPress={() => update({ showTranslation: !settings.showTranslation })}
-              size={19}
-            />
-            <IconButton
-              icon="color-palette-outline"
-              label="Toggle Tajweed highlighting"
-              active={settings.tajweed}
-              onPress={() => update({ tajweed: !settings.tajweed })}
-              size={19}
-            />
-            <IconButton
-              icon="text-outline"
-              label="Reading appearance"
-              onPress={() => setAppearanceOpen(true)}
-              size={19}
-            />
-          </View>
-        }
-      />
-      <View style={[styles.progressTrack, { backgroundColor: colors.surfaceMuted }]}>
-        <View
-          style={[
-            styles.progressFill,
-            { backgroundColor: colors.accent, width: `${progress * 100}%` },
-          ]}
+    <Screen edges={fullscreen ? ["left", "right"] : ["top", "left", "right"]}>
+      {fullscreen ? null : (
+        <AppHeader
+          title={surah.meta.name}
+          subtitle={`Verse ${activeVerse} of ${surah.meta.verseCount}`}
+          right={
+            <View style={styles.toolbarActions}>
+              <IconButton
+                icon="search-outline"
+                label="Search the Quran"
+                onPress={() => router.push("/search")}
+                size={19}
+              />
+              <IconButton
+                icon="language-outline"
+                label={
+                  settings.showTranslation ? "Hide translation" : "Show translation"
+                }
+                active={settings.showTranslation}
+                onPress={() => update({ showTranslation: !settings.showTranslation })}
+                size={19}
+              />
+              <IconButton
+                icon="text-outline"
+                label="Reading appearance"
+                onPress={() => setAppearanceOpen(true)}
+                size={19}
+              />
+              <IconButton
+                icon="expand-outline"
+                label="Enter fullscreen reading"
+                onPress={() => setFullscreen(true)}
+                size={19}
+              />
+            </View>
+          }
         />
-      </View>
+      )}
+      {fullscreen ? null : (
+        <View style={[styles.progressTrack, { backgroundColor: colors.surfaceMuted }]}>
+          <View
+            style={[
+              styles.progressFill,
+              { backgroundColor: colors.accent, width: `${progress * 100}%` },
+            ]}
+          />
+        </View>
+      )}
 
-      {resumeVerse && resumeVerse > 1 && resumeVerse !== targetVerse ? (
+      {fullscreen ? (
+        <View style={styles.fullscreenExit}>
+          <IconButton
+            icon="contract-outline"
+            label="Exit fullscreen reading"
+            onPress={() => setFullscreen(false)}
+            size={19}
+          />
+        </View>
+      ) : null}
+
+      {!fullscreen && resumeVerse && resumeVerse > 1 && resumeVerse !== targetVerse ? (
         <View style={styles.resumeWrap}>
           <Pressable
             onPress={() => {
@@ -422,6 +454,7 @@ export default function SurahReaderScreen() {
         viewabilityConfig={VIEWABILITY}
         onScrollToIndexFailed={onScrollToIndexFailed}
         contentContainerStyle={{
+          paddingTop: fullscreen ? 48 : 0,
           paddingBottom: (audio.current ? 150 : 28) + insets.bottom,
         }}
       />
@@ -485,6 +518,12 @@ const styles = StyleSheet.create({
   toolbarActions: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  fullscreenExit: {
+    position: "absolute",
+    top: 6,
+    right: 8,
+    zIndex: 2,
   },
   progressTrack: {
     height: 2,

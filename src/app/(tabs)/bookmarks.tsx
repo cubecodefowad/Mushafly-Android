@@ -6,12 +6,14 @@ import { Icon } from "../../components/ui/Icon";
 import { IconButton } from "../../components/ui/IconButton";
 import { Screen } from "../../components/ui/Screen";
 import { SajdahBadge } from "../../components/quran/SajdahBadge";
+import { TranslationText } from "../../components/quran/TranslationText";
 import { useBookmarkDetails } from "../../features/bookmarks/useBookmarkDetails";
 import { useLibrary } from "../../features/bookmarks/LibraryProvider";
 import { useSurahList } from "../../features/quran/hooks";
 import { translationInfo } from "../../features/settings/settings";
 import { useSettings } from "../../features/settings/SettingsProvider";
 import { useTheme } from "../../theme/ThemeProvider";
+import { arabicLineHeight } from "../../theme/typography";
 import type { BookmarkRecord } from "../../types/quran";
 import { formatDate, surahHref } from "../../utils/reference";
 
@@ -147,23 +149,13 @@ export default function BookmarksScreen() {
                       {preview.arabic}
                     </AppText>
                     {translation ? (
-                      <AppText
+                      <TranslationText
+                        text={translation}
+                        size={settings.translationSize}
+                        rtl={translationIsRtl}
                         numberOfLines={2}
-                        maxFontSizeMultiplier={1.4}
-                        style={[
-                          styles.translation,
-                          {
-                            color: colors.muted,
-                            fontFamily: translationIsRtl ? fonts.arabic : fonts.serif,
-                            fontSize: settings.translationSize,
-                            lineHeight: Math.round(settings.translationSize * 1.6),
-                            textAlign: translationIsRtl ? "right" : "left",
-                            writingDirection: translationIsRtl ? "rtl" : "ltr",
-                          },
-                        ]}
-                      >
-                        {translation}
-                      </AppText>
+                        style={styles.translation}
+                      />
                     ) : null}
                   </>
                 ) : (
@@ -229,7 +221,7 @@ const styles = StyleSheet.create({
   arabicName: {
     maxWidth: "30%",
     fontSize: 21,
-    lineHeight: 32,
+    lineHeight: arabicLineHeight(21),
     textAlign: "right",
     writingDirection: "rtl",
   },
@@ -239,7 +231,7 @@ const styles = StyleSheet.create({
   arabic: {
     marginTop: 8,
     fontSize: 24,
-    lineHeight: 45,
+    lineHeight: arabicLineHeight(24),
     textAlign: "right",
     writingDirection: "rtl",
   },

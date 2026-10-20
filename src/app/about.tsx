@@ -64,8 +64,9 @@ export default function AboutScreen() {
         <AppText tone="muted" style={styles.intro}>
           Mushafly displays text it did not write. This page states where every
           part of it comes from, what has been checked, what has not, and how to
-          report a possible problem. The reader bundles {SOURCE_INFO.translations.length}{" "}
-          datasets; the website carries the full Tanzil registry.
+          report a possible problem. The reader bundles all{" "}
+          {SOURCE_INFO.translations.length} datasets the website publishes, so every
+          edition is available offline.
         </AppText>
 
         <Card style={styles.notice}>

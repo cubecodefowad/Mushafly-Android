@@ -5,12 +5,13 @@ is the mobile companion to the [Mushafly web reader](https://github.com/cubecode
 and keeps the same source-faithful data, editorial light/dark themes and
 Tajweed rules. It is a real React Native app — not a WebView around the site.
 
-The app ships with the complete Quran and 30 translation datasets across 17
-languages — English, Indonesian, Urdu, Arabic commentary, French, Spanish,
-German, Turkish, Bengali, Persian, Russian, Malay, Hindi, Portuguese, Swedish,
-Italian and Swahili — inside a bundled SQLite database. Reading, search,
-bookmarks, settings and every reference page work with no network connection.
-Only recitation audio and external links need the internet.
+The app ships with the complete Quran and all 68 translation datasets the
+website publishes, across 29 languages — every English, Urdu, Arabic
+commentary, Indonesian, Turkish, Russian and Bengali edition, plus French,
+Spanish, German, Persian, Malay, Hindi, Portuguese, Swedish, Italian, Swahili
+and the rest — inside a bundled SQLite database. Reading, search, translation
+switching, bookmarks, settings and every reference page work with no network
+connection. Only recitation audio and external links need the internet.
 
 ## Requirements
 
@@ -128,7 +129,7 @@ Everything the reader displays comes from the pinned runtime tree of
 | Commit | `7ca6f46ec9a1a029cdb220c2531d509f4a5b5e98` |
 | Source license | MIT |
 | Runtime tree | `public/quran` (copied from the Mushafly web repository) |
-| Database | `assets/data/quran.db`, 61.5 MiB, SHA-256 `27f4cb2c…416c984b` |
+| Database | `assets/data/quran.db`, 33.20 MiB, SHA-256 `c340bb20…d4ae8fc9` |
 | Arabic font | Amiri Quran, `assets/fonts/AmiriQuran-Regular.ttf`, OFL |
 | Audio | Streamed from the same pinned commit on `raw.githubusercontent.com` |
 
@@ -150,13 +151,16 @@ npm run data:validate
 ```
 
 The importer copies every Arabic and translation string byte for byte from the
-web runtime tree, reading all 30 datasets from `public/quran/translation`. It
-derives one Arabic search column with documented normalization; the displayed
-Arabic is never normalized, trimmed of diacritics, or rewritten. The database
-includes 6,348 Arabic rows (6,236 numbered verses plus 112 Bismillah rows),
-187,304 translation rows, 60,841 Tajweed ranges, 15 sajdah references and 6,348
-audio URLs. Dataset keys are listed in `scripts/import-quran-data.mjs`; add one
-there and rerun the import to bundle another edition.
+web runtime tree, reading every dataset in the website's translation registry
+from `public/quran/translation` — 68 editions today. It derives one Arabic
+search column with documented normalization; the displayed Arabic is never
+normalized, trimmed of diacritics, or rewritten. The database includes 6,348
+Arabic rows (6,236 numbered verses plus 112 Bismillah rows), 424,272 translation
+rows across 68 datasets, 60,841 Tajweed ranges, 15 sajdah references and 6,348
+audio URLs. Each dataset's rows are stored as one gzipped JSON payload instead
+of 6,236 SQLite rows, which keeps the committed database at 33 MB while every
+edition stays readable offline. The dataset list comes from the web registry, so
+a new translation on the site is picked up by rerunning the import.
 
 ### Sajdah and Quranic marks
 
@@ -172,12 +176,22 @@ and 390px pixel checks, and why the mobile rendering is different.
 
 ## Translations and Tajweed
 
-The website carries all 68 Tanzil/quranjson datasets. This app bundles 30 of
-them so the download stays reasonable while every major reading language is
-available offline. The picker in Settings groups them by language and is
-searchable by language, translator or edition: it shows the short edition name,
-translator and source, and the reader reloads in place without losing its
-position.
+The app bundles the same 68 Tanzil/quranjson datasets the website carries, so
+no edition is missing from the picker and every one of them works offline. The
+picker in Settings groups them by language and is searchable by language,
+translator or edition: it shows the short edition name, translator and source,
+and the reader reloads in place without losing its position.
+
+## Reader
+
+- Arabic text is set with a 2.5 em line box, measured from the bundled font's
+  own ascent and descent. Android rewrites font metrics to fit whatever line
+  height it is given, so a tighter setting clips the tall pause signs and the
+  tails of letters. Translations are drawn with the device's script font and no
+  fixed line height, which protects every script the app ships.
+- The expand action in the reader toolbar enters fullscreen reading: the status
+  and navigation bars, the app header and the progress bar are hidden until the
+  contract button or the back gesture leaves fullscreen.
 
 Search matches the Arabic source and the selected translation dataset. Matching
 is diacritic-insensitive for Arabic and works in every bundled script, including
@@ -241,8 +255,9 @@ that never loads fails after 12 seconds with the same kind of message.
   upstream annotation cannot be applied faithfully.
 - Search covers Arabic and the selected translation. Transliteration is not part
   of the source, so it is not searchable.
-- 30 of the website's 68 translation datasets are bundled. The remaining
-  editions can be added by extending the dataset list and rebuilding the
-  database; they are not downloaded at runtime.
+- All 68 translation editions are bundled. The database is 33.2 MB on disk
+  because translations are stored as one gzipped payload per dataset; the first
+  launch copies it into app storage. Nothing is downloaded at runtime, and only
+  the selected dataset is decompressed (then cached) when it is read.
 - The app has not yet been through a manual side-by-side comparison with a
   printed Mushaf, nor a performance pass on a low-end physical device.

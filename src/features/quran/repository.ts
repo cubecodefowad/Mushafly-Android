@@ -1,4 +1,5 @@
 import type { SQLiteBindValue } from "expo-sqlite";
+import { gunzipSync, strFromU8 } from "fflate";
 import { renderTajweed, type RawTajweedRange } from "./tajweed";
 import { TAJWEED_RULES } from "./tajweed-rules";
 import { excerptFor, normalize, normalizeForSearch } from "./normalize";
@@ -41,20 +42,81 @@ type VerseRow = {
   audio_size: number;
 };
 
-type TranslationRow = {
-  surah: number;
-  verse: number;
-  text: string;
-};
+/** surah → verse → text, decoded from one dataset payload. */
+type TranslationDataset = Map<number, Map<number, string>>;
 
 const surahCache = new WeakMap<QuranDatabase, SurahMeta[]>();
+const translationDatasetCache = new WeakMap<QuranDatabase, Map<string, TranslationDataset>>();
 const translationIndexCache = new WeakMap<
   QuranDatabase,
   Map<string, TranslationIndexEntry[]>
 >();
 const arabicTextCache = new WeakMap<QuranDatabase, Map<string, string>>();
 
-type TranslationIndexEntry = TranslationRow & { search: string };
+/**
+ * A decoded dataset is several megabytes, so only the recent ones are kept.
+ * Without a bound, tapping through the picker would retain every edition.
+ */
+const MAX_CACHED_DATASETS = 2;
+
+function remember<T>(cache: Map<string, T>, key: string, value: T): T {
+  cache.delete(key);
+  cache.set(key, value);
+  while (cache.size > MAX_CACHED_DATASETS) {
+    const oldest = cache.keys().next().value;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
+  }
+  return value;
+}
+
+type TranslationIndexEntry = {
+  surah: number;
+  verse: number;
+  text: string;
+  search: string;
+};
+
+/**
+ * Reads and unpacks one dataset. Translations are stored as a gzipped JSON
+ * payload per dataset, so all 68 editions fit in the committed database; a
+ * dataset is only decompressed when it is selected, and then cached for the
+ * lifetime of the database handle.
+ */
+async function loadTranslationDataset(
+  db: QuranDatabase,
+  dataset: TranslationLanguage,
+): Promise<TranslationDataset> {
+  let byDataset = translationDatasetCache.get(db);
+  if (!byDataset) {
+    byDataset = new Map();
+    translationDatasetCache.set(db, byDataset);
+  }
+  const cached = byDataset.get(dataset);
+  if (cached) return remember(byDataset, dataset, cached);
+
+  const row = await db.getFirstAsync<{ payload: Uint8Array | ArrayBuffer }>(
+    "SELECT payload FROM translation_datasets WHERE dataset = ?",
+    dataset,
+  );
+  const decoded: TranslationDataset = new Map();
+  if (row?.payload) {
+    const bytes =
+      row.payload instanceof Uint8Array ? row.payload : new Uint8Array(row.payload);
+    const parsed = JSON.parse(strFromU8(gunzipSync(bytes))) as Record<
+      string,
+      Record<string, string>
+    >;
+    for (const [surah, bucket] of Object.entries(parsed)) {
+      const verses = new Map<number, string>();
+      for (const [verse, text] of Object.entries(bucket)) {
+        verses.set(Number(verse), text);
+      }
+      decoded.set(Number(surah), verses);
+    }
+  }
+  return remember(byDataset, dataset, decoded);
+}
 
 function toMeta(row: SurahRow): SurahMeta {
   let juz: SurahMeta["juz"] = [];
@@ -143,18 +205,6 @@ export async function getSurahMeta(
   return all.find((entry) => entry.number === number) ?? null;
 }
 
-async function translationsForSurah(
-  db: QuranDatabase,
-  surahNumber: number,
-  language: TranslationLanguage,
-): Promise<Map<number, string>> {
-  const rows = await db.getAllAsync<{ verse: number; text: string }>(
-    `SELECT verse, text FROM translations WHERE dataset = ? AND surah = ? ORDER BY verse`,
-    language,
-    surahNumber,
-  );
-  return new Map(rows.map((row) => [row.verse, row.text]));
-}
 
 export async function getSurah(
   db: QuranDatabase,
@@ -178,9 +228,9 @@ export async function getSurah(
     throw new Error(`Surah ${number} has no verse rows in the database.`);
   }
 
-  const translations = await translationsForSurah(db, number, language);
+  const translations = (await loadTranslationDataset(db, language)).get(number);
   const items = rows.map((row) =>
-    toVerse(row, translations.get(row.verse) ?? null, language),
+    toVerse(row, translations?.get(row.verse) ?? null, language),
   );
   const bismillah = items.find((verse) => verse.number === 0) ?? null;
   const verses = items.filter((verse) => verse.number > 0);
@@ -231,13 +281,8 @@ export async function getVerse(
     verseNumber,
   );
   if (!row) return null;
-  const translation = await db.getFirstAsync<{ text: string }>(
-    `SELECT text FROM translations WHERE dataset = ? AND surah = ? AND verse = ?`,
-    language,
-    surahNumber,
-    verseNumber,
-  );
-  return toVerse(row, translation?.text ?? null, language);
+  const dataset = await loadTranslationDataset(db, language);
+  return toVerse(row, dataset.get(surahNumber)?.get(verseNumber) ?? null, language);
 }
 
 export type VersePreview = {
@@ -263,27 +308,23 @@ export async function getVersePreview(
     has_sajdah: number;
     name: string;
     arabic_name: string;
-    translation: string | null;
   }>(
-    `SELECT v.surah, v.verse, v.arabic, v.has_sajdah,
-            s.name, s.arabic_name, t.text AS translation
+    `SELECT v.surah, v.verse, v.arabic, v.has_sajdah, s.name, s.arabic_name
      FROM verses v
      JOIN surahs s ON s.number = v.surah
-     LEFT JOIN translations t
-       ON t.dataset = ? AND t.surah = v.surah AND t.verse = v.verse
      WHERE v.surah = ? AND v.verse = ?`,
-    language,
     surahNumber,
     verseNumber,
   );
   if (!row) return null;
+  const dataset = await loadTranslationDataset(db, language);
   return {
     surahNumber: row.surah,
     verseNumber: row.verse,
     surahName: row.name,
     surahArabicName: row.arabic_name,
     arabic: row.arabic,
-    translation: row.translation ?? null,
+    translation: dataset.get(surahNumber)?.get(verseNumber) ?? null,
     hasSajdah: row.has_sajdah === 1,
   };
 }
@@ -321,14 +362,16 @@ async function translationIndex(
     translationIndexCache.set(db, byDataset);
   }
   const cached = byDataset.get(dataset);
-  if (cached) return cached;
-  const rows = await db.getAllAsync<TranslationRow>(
-    `SELECT surah, verse, text FROM translations WHERE dataset = ? ORDER BY surah, verse`,
-    dataset,
-  );
-  const index = rows.map((row) => ({ ...row, search: normalizeForSearch(row.text) }));
-  byDataset.set(dataset, index);
-  return index;
+  if (cached) return remember(byDataset, dataset, cached);
+  const translations = await loadTranslationDataset(db, dataset);
+  const index: TranslationIndexEntry[] = [];
+  for (const [surah, verses] of translations) {
+    for (const [verse, text] of verses) {
+      index.push({ surah, verse, text, search: normalizeForSearch(text) });
+    }
+  }
+  index.sort((a, b) => (a.surah === b.surah ? a.verse - b.verse : a.surah - b.surah));
+  return remember(byDataset, dataset, index);
 }
 
 export async function searchVerses(

@@ -20,6 +20,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import zlib from "node:zlib";
 import { renderTajweed } from "../src/features/quran/tajweed.ts";
 import { normalize } from "../src/features/quran/normalize.ts";
 import { TAJWEED_RULES } from "../src/features/quran/tajweed-rules.ts";
@@ -49,43 +50,14 @@ const tanzilTranslations = readWebJson("tanzil-translations.json");
 const ALL_TRANSLATIONS = [...attribution.translations, ...tanzilTranslations];
 
 /**
- * Dataset keys bundled in the Android build. The website ships every dataset in
- * the Tanzil registry; the APK carries this offline subset so the download and
- * the on-device database stay a reasonable size while every major reading
- * language remains available without a network request.
+ * Dataset keys bundled in the Android build: every dataset the website
+ * publishes, in registry order. The app mirrors the site rather than a subset,
+ * so a reader can choose any translation offline without a download.
  */
-const DATASETS = [
-  "en",
-  "id",
-  "ar",
-  "ar.jalalayn",
-  "en.sahih",
-  "en.yusufali",
-  "en.pickthall",
-  "en.hilali",
-  "en.ahmedali",
-  "en.daryabadi",
-  "en.maududi",
-  "en.mubarakpuri",
-  "en.wahiduddin",
-  "en.qaribullah",
-  "en.ahmedraza",
-  "ur.kanzuliman",
-  "ur.junagarhi",
-  "fr.hamidullah",
-  "es.garcia",
-  "de.aburida",
-  "tr.diyanet",
-  "bn.bengali",
-  "fa.khorramdel",
-  "ru.kuliev",
-  "ms.basmeih",
-  "hi.hindi",
-  "pt.elhayek",
-  "sv.bernstrom",
-  "it.piccardo",
-  "sw.barwani",
-];
+const DATASETS = ALL_TRANSLATIONS.map((entry) => entry.languageCode);
+if (new Set(DATASETS).size !== DATASETS.length) {
+  fail("The web translation registry lists a dataset twice");
+}
 
 const translationsMeta = DATASETS.map((key) => {
   const meta = ALL_TRANSLATIONS.find((entry) => entry.languageCode === key);
@@ -137,7 +109,13 @@ let rawTajweedRanges = 0;
 let unavailableTajweed = 0;
 let audioEntries = 0;
 const translationRows = Object.fromEntries(DATASETS.map((key) => [key, 0]));
-const translationValues = [];
+/**
+ * Translations are stored as one gzipped JSON payload per dataset rather than
+ * one SQLite row per verse. Forty-two thousand rows of plain text would push
+ * the committed database past 160 MB; the same text gzipped is about a quarter
+ * of that, and a reader only ever needs one dataset at a time.
+ */
+const translationPayloads = Object.fromEntries(DATASETS.map((key) => [key, {}]));
 let arabicRows = 0;
 
 const audioBase = `https://raw.githubusercontent.com/semarketir/quranjson/${manifest.commit}/source/audio`;
@@ -222,7 +200,10 @@ for (const meta of metadata) {
       if (typeof text !== "string" || text.length === 0) {
         fail(`Surah ${number}: ${dataset.languageCode} translation ${key} is empty`);
       }
-      translationValues.push([dataset.languageCode, number, verseNumber, text]);
+      const bucket =
+        translationPayloads[dataset.languageCode][number] ??
+        (translationPayloads[dataset.languageCode][number] = {});
+      bucket[verseNumber] = text;
       translationRows[dataset.languageCode]++;
     }
 
@@ -308,7 +289,16 @@ for (const dataset of translationsMeta) {
     );
   }
 }
-if (translationValues.length !== DATASETS.reduce((sum, key) => sum + translationRows[key], 0)) {
+const translationTotalRows = DATASETS.reduce(
+  (total, key) =>
+    total +
+    Object.values(translationPayloads[key]).reduce(
+      (surahTotal, bucket) => surahTotal + Object.keys(bucket).length,
+      0,
+    ),
+  0,
+);
+if (translationTotalRows !== DATASETS.reduce((sum, key) => sum + translationRows[key], 0)) {
   fail("Translation row accounting is inconsistent.");
 }
 if (rawTajweedRanges !== manifest.counts.tajweedSegments) {
@@ -420,14 +410,10 @@ db.exec(`
     PRIMARY KEY (surah, verse)
   );
   CREATE INDEX verses_surah ON verses(surah);
-  CREATE TABLE translations (
-    dataset TEXT NOT NULL,
-    surah INTEGER NOT NULL,
-    verse INTEGER NOT NULL,
-    text TEXT NOT NULL,
-    PRIMARY KEY (dataset, surah, verse)
+  CREATE TABLE translation_datasets (
+    dataset TEXT PRIMARY KEY NOT NULL,
+    payload BLOB NOT NULL
   ) WITHOUT ROWID;
-  CREATE INDEX translations_dataset_verse ON translations(dataset, surah, verse);
 `);
 
 const insertMeta = db.prepare("INSERT INTO meta (key, value) VALUES (?, ?)");
@@ -441,8 +427,8 @@ const insertVerse = db.prepare(`
     audio_file, audio_url, audio_size
   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
-const insertTranslation = db.prepare(
-  "INSERT INTO translations (dataset, surah, verse, text) VALUES (?, ?, ?, ?)",
+const insertTranslationDataset = db.prepare(
+  "INSERT INTO translation_datasets (dataset, payload) VALUES (?, ?)",
 );
 
 db.exec("BEGIN IMMEDIATE");
@@ -473,12 +459,16 @@ try {
       );
     }
   }
-  for (const [dataset, surah, verse, text] of translationValues) {
-    insertTranslation.run(dataset, surah, verse, text);
+  for (const dataset of DATASETS) {
+    const json = JSON.stringify(translationPayloads[dataset]);
+    insertTranslationDataset.run(
+      dataset,
+      zlib.gzipSync(Buffer.from(json, "utf8"), { level: 9 }),
+    );
   }
 
   const metaRows = {
-    schemaVersion: "2",
+    schemaVersion: "3",
     sourceRepository: manifest.repository,
     sourceCommit: manifest.commit,
     sourceLicense: manifest.license,
@@ -518,12 +508,7 @@ const checks = [
   ["numbered verses", "SELECT COUNT(*) AS n FROM verses WHERE verse > 0", 6236],
   ["sajdah", "SELECT COUNT(*) AS n FROM verses WHERE has_sajdah = 1", 15],
   ["bismillah", "SELECT COUNT(*) AS n FROM verses WHERE verse = 0", 112],
-  ["translation datasets", "SELECT COUNT(DISTINCT dataset) AS n FROM translations", DATASETS.length],
-  [
-    "translation rows",
-    "SELECT COUNT(*) AS n FROM translations",
-    Object.values(translationRows).reduce((sum, value) => sum + value, 0),
-  ],
+  ["translation datasets", "SELECT COUNT(*) AS n FROM translation_datasets", DATASETS.length],
 ];
 for (const [label, sql, expected] of checks) {
   const actual = Number(db.prepare(sql).get().n);
@@ -548,19 +533,31 @@ for (let index = 0; index < expectedRows.length; index++) {
   }
 }
 
-const translationRoundTrip = db
-  .prepare("SELECT dataset, surah, verse, text FROM translations")
-  .all();
-if (translationRoundTrip.length !== translationValues.length) {
-  fail("Post-build translation row count changed while writing.");
-}
-const translationLookup = new Map(
-  translationRoundTrip.map((row) => [`${row.dataset}|${row.surah}|${row.verse}`, row.text]),
+const storedPayloads = new Map(
+  db
+    .prepare("SELECT dataset, payload FROM translation_datasets")
+    .all()
+    .map((row) => [row.dataset, row.payload]),
 );
-for (const [dataset, surah, verse, text] of translationValues) {
-  if (translationLookup.get(`${dataset}|${surah}|${verse}`) !== text) {
-    fail(`Post-build translation mismatch at ${dataset} ${surah}:${verse}`);
+if (storedPayloads.size !== DATASETS.length) {
+  fail("Post-build translation dataset count changed while writing.");
+}
+let verifiedTranslationRows = 0;
+for (const dataset of DATASETS) {
+  const blob = storedPayloads.get(dataset);
+  if (!blob) fail(`Post-build translation payload is missing for ${dataset}`);
+  const decoded = JSON.parse(zlib.gunzipSync(blob).toString("utf8"));
+  if (JSON.stringify(decoded) !== JSON.stringify(translationPayloads[dataset])) {
+    fail(`Post-build translation payload mismatch for ${dataset}`);
   }
+  for (const bucket of Object.values(decoded)) {
+    verifiedTranslationRows += Object.keys(bucket).length;
+  }
+}
+if (verifiedTranslationRows !== translationTotalRows) {
+  fail(
+    `Post-build translation row count ${verifiedTranslationRows} != ${translationTotalRows}`,
+  );
 }
 
 db.close();
@@ -571,7 +568,7 @@ const dbSha256 = sha256File(DB_PATH);
 const dbBytes = fs.statSync(DB_PATH).size;
 const dataVersion = dbSha256.slice(0, 16);
 const lock = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   source: {
     repository: manifest.repository,
     commit: manifest.commit,
@@ -678,7 +675,7 @@ console.log(
     `  rows        ${arabicRows} (${manifest.counts.verses} numbered + 112 Bismillah)`,
     `  sajdah      ${computedSajdah.length} verified references`,
     `  tajweed     ${rawTajweedRanges} ranges, ${unavailableTajweed} verses rendered plain`,
-    `  translations ${DATASETS.length} datasets, ${translationValues.length} rows`,
+    `  translations ${DATASETS.length} datasets, ${translationTotalRows} rows (gzipped per dataset)`,
     `  database    ${(dbBytes / 1024 / 1024).toFixed(2)} MiB, sha256 ${dbSha256.slice(0, 16)}…`,
   ].join("\n"),
 );

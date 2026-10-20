@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react-native";
+import { arabicLineHeight } from "../../src/theme/typography";
 import { ArabicText } from "../../src/components/quran/ArabicText";
 import { renderTajweed } from "../../src/features/quran/tajweed";
 import { TAJWEED_RULES } from "../../src/features/quran/tajweed-rules";
@@ -42,6 +43,12 @@ function flatten(node: unknown): string {
 }
 
 describe("ArabicText", () => {
+  it("scales the line box with the requested Arabic size", () => {
+    expect(arabicLineHeight(22)).toBeGreaterThanOrEqual(22 * 2.449);
+    expect(arabicLineHeight(52)).toBeGreaterThanOrEqual(52 * 2.449);
+    expect(arabicLineHeight(34)).toBeGreaterThan(arabicLineHeight(33));
+  });
+
   it("renders the exact source string when Tajweed is off", async () => {
     const view = await render(<ArabicText text={KEPT_TEXT} size={34} />);
     expect(flatten(view.toJSON())).toBe(KEPT_TEXT);
@@ -92,5 +99,19 @@ describe("ArabicText", () => {
     expect(style.writingDirection).toBe("rtl");
     expect(style.textAlign).toBe("right");
     expect(style.fontFamily).toBe("AmiriQuran");
+  });
+
+  it("reserves the font's whole line box so marks and tails stay visible", async () => {
+    await render(
+      <ArabicText text={KEPT_TEXT} size={34} accessibilityLabel="Al-A'raf 206" />,
+    );
+    const node = screen.getByLabelText("Al-A'raf 206");
+    const style = Array.isArray(node.props.style)
+      ? Object.assign({}, ...node.props.style.filter(Boolean))
+      : node.props.style;
+    // Amiri Quran's ascent (1.815 em) plus descent (0.634 em) is 2.449 em.
+    // Android rewrites the font metrics to the requested line height, so a
+    // shorter box clips the pause signs above and the tails below.
+    expect(style.lineHeight).toBeGreaterThanOrEqual(34 * 2.449);
   });
 });

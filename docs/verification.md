@@ -24,11 +24,12 @@ checkout present, all 6,348 rows are compared byte for byte against
 | Check | Result |
 | --- | --- |
 | `npx tsc --noEmit` | pass, no errors |
-| `npm run data:validate` | pass — pinned hash, 114 surahs, 6,236 numbered verses, 112 Bismillah rows, 30 translation datasets / 187,304 rows, 15 sajdah refs, 60,841 Tajweed ranges, 147 intentionally plain verses, 1,446-glyph font covers every displayed Arabic code point, 6,348 rows byte-compared with the source |
-| `npm test` | pass — 10 suites, 63 tests |
-| `npx expo export --platform android` | pass — Hermes bundle 4.7 MB, 61.5 MB database asset present in the export |
+| `npm run data:validate` | pass — pinned hash, 114 surahs, 6,236 numbered verses, 112 Bismillah rows, 68 translation datasets / 424,272 rows decompressed and checked, 15 sajdah refs, 60,841 Tajweed ranges, 147 intentionally plain verses, 1,446-glyph font covers every displayed Arabic code point, 6,348 rows byte-compared with the source; database 33.20 MiB |
+| `npm test` | pass — 11 suites, 70 tests |
+| `npx expo export --platform android` | pass — Hermes bundle 4.8 MB, 33.20 MB database asset present in the export, 42 MB export directory |
 | `npx expo-doctor` | pass — 20/20 checks |
-| APK build | pass in GitHub Actions (run [39474437023](https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39474437023), commit `244f5e7`, version 1.1.0): artifact `mushafly-apk`, 60 MB zip, release APK built with the generated debug keystore; every step including `npm run verify` succeeded |
+| APK build (1.1.0) | pass in GitHub Actions (run [39474437023](https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39474437023), commit `244f5e7`, version 1.1.0): artifact `mushafly-apk`, 60 MB zip, release APK built with the generated debug keystore; every step including `npm run verify` succeeded |
+| APK build (1.1.1) | **not run yet** — the fixes are in the workspace at version 1.1.1 (versionCode 3) and still need a CI run |
 | APK on a device | **not run** — no device or emulator was available to this workspace |
 
 The export is not a substitute for a device test, and neither is the APK build.
@@ -69,7 +70,12 @@ Component tests (`@testing-library/react-native`):
 - `ArabicText` renders the exact source string with Tajweed off and on, keeps
   U+06E9 at the end, paints a source rule with its palette colour and underline,
   and sets `writingDirection: rtl`, right alignment, the Amiri Quran family and
-  `accessibilityLanguage: "ar"`.
+  `accessibilityLanguage: "ar"`. It also asserts that the line box is at least
+  the font's 2.449 em, so the tall pause signs and letter tails stay inside it.
+- `TranslationText` asserts that translation copy has no explicit line height
+  (the platform measures the line box, so no script's descenders are clipped),
+  that RTL copy uses the device font because the bundled face has no Urdu
+  glyphs, and that Latin copy keeps the serif family.
 - `SajdahBadge` shows the U+06E9 glyph plus the word "Sajdah" and an accessible
   label.
 
@@ -87,13 +93,16 @@ Integration tests:
 - It also walks all 6,236 verses and asserts the shaping invariant on the real
   annotation: no colour run may start on a mark attached to a letter or inside a
   joined word. It confirms the selected dataset is read from the translations
-  table (`en.sahih` differs from `en`, Urdu returns Urdu), that only `en` and
-  `id` carry Bismillah rows, and that search follows the selected dataset in
-  both English and Urdu.
+  payload (`en.sahih` differs from `en`, all six Urdu editions return Urdu
+  script), that only `en` and `id` carry Bismillah rows, and that search follows
+  the selected dataset in both English and Urdu.
 
 Not covered by automated tests: the SQLite copy-on-first-launch path, audio
 lifecycle on a real device, gesture and scroll performance, safe areas and
-cutouts, and Android process death. These need an emulator or phone.
+cutouts, Android process death, the visual result of the new Arabic line
+metrics, whether the system bars actually hide in fullscreen, and how long the
+first decompression of a dataset takes on a low-end phone. These need an
+emulator or phone.
 
 ## Reader fixes in 1.1.0
 
@@ -105,6 +114,15 @@ cutouts, and Android process death. These need an emulator or phone.
 | No scrolling while ayat play | Playback changed the track but nothing told the list to move | An effect follows `audio.current` and calls `scrollToIndex` for the playing verse (top for the Bismillah), with the existing `onScrollToIndexFailed` fallback | Code path in `surah/[number].tsx`; needs a device pass to judge feel |
 | No separate Tajweed, search, About, ToS or privacy pages | Search and About existed but were not tabs, and there was no legal or Tajweed reference screen | Search is a tab with its own icon and is reachable from the reader header; Tajweed and marks, Terms of Service and Privacy Policy are separate screens linked from Home, Settings and About | TypeScript + Metro bundle include every route; copy was rewritten for the app's real storage and network behaviour |
 | Search for ayat missing | The search screen existed but was buried behind a Home tile, and its text only described an English translation | Search is a dedicated tab, searches the selected dataset, names that dataset, and explains Arabic matching | Repository integration tests cover Arabic, English and Urdu searches |
+
+## Reader fixes after 1.1.0
+
+| Report | Cause found | Fix | Evidence |
+| --- | --- | --- | --- |
+| Tajweed signs missing or half visible; Arabic names and translated text cut off at the bottom | Amiri Quran's ascent is 1.815 em and its descent 0.634 em, so its line box is 2.449 em. React Native on Android rewrites the font metrics to whatever `lineHeight` is supplied, so every Arabic text set below that (2.12 em in the reader, 1.9 em in search, 1.58 em in the surah list) clipped the ink above and below the line. Urdu and other RTL translations were also set in Amiri Quran at 2.0 em, and that face has no Urdu glyphs at all | Arabic text now asks for `ceil(size × 2.5)` through one helper; translations use the device script font and no explicit line height, so the platform measures the line box; the Tajweed reference cells grow to fit their glyph instead of using a fixed 42 px box | `ArabicText.test.tsx` asserts the 2.449 em minimum; `TranslationText.test.tsx` asserts no `lineHeight` and the device font for RTL; the font metrics were measured from `AmiriQuran-Regular.ttf` with fontkit (1446 glyphs, no U+0679/U+0688/U+06D2) |
+| Only two Urdu editions; other datasets missing | The importer carried a hand-written list of 30 datasets while the website publishes 68. Storing every row as a SQLite row would also have grown the committed database to 164 MB, past the 100 MB limit for a Git file | The importer now reads the website's translation registry, so all 68 editions (29 language groups, six Urdu) are bundled. Rows are written as one gzipped JSON payload per dataset and decompressed on selection, which brings the database back to 33.2 MB | Validator decompresses every payload: 68 datasets, 424,272 rows, every row byte-compared with the site; repository tests read all six Urdu editions |
+| No fullscreen mode; the navigation bar stayed visible | The reader had no immersive mode and never asked Android to hide the system bars | The reader toolbar gains a fullscreen action that hides the status and navigation bars, removes the app header and progress bar, and restores both bars when fullscreen is left or the screen closes | Code path in `surah/[number].tsx`; needs a device pass to confirm gesture navigation and cutout behaviour |
+| The “N verses are shown as plain text” note appeared twice, after the Bismillah and after the Tajweed colours | The note was rendered in `SurahHeader` and again in `TajweedLegend` | It is rendered once, above the colour chips, where it introduces the Tajweed colours | Component tree |
 
 ## Sajdah investigation
 

@@ -16,6 +16,13 @@ export function TajweedLegend({
 
   return (
     <View style={styles.wrap}>
+      {unavailableCount > 0 ? (
+        <AppText variant="caption" tone="muted" style={styles.note}>
+          {unavailableCount} verse{unavailableCount === 1 ? " is" : "s are"} shown as
+          plain source text because the supplied Tajweed annotations do not align
+          with the displayed characters. No text is changed.
+        </AppText>
+      ) : null}
       {rules.length > 0 ? (
         <ScrollView
           horizontal
@@ -45,13 +52,6 @@ export function TajweedLegend({
           })}
         </ScrollView>
       ) : null}
-      {unavailableCount > 0 ? (
-        <AppText variant="caption" tone="muted" style={styles.note}>
-          {unavailableCount} verse{unavailableCount === 1 ? "" : "s"} are shown as
-          plain source text because the supplied Tajweed annotations do not align
-          with the displayed characters. No text is changed.
-        </AppText>
-      ) : null}
     </View>
   );
 }
@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   note: {
-    marginTop: 10,
+    marginBottom: 10,
     lineHeight: 17,
   },
 });

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useTheme } from "../../theme/ThemeProvider";
+import { arabicLineHeight } from "../../theme/typography";
 import {
   groupedTranslations,
   translationInfo,
@@ -126,7 +127,13 @@ export function TranslationPickerSheet({
                     variant="label"
                     style={[
                       styles.optionName,
-                      rtl ? { fontFamily: fonts.arabic, fontSize: 19 } : null,
+                      rtl
+                        ? {
+                            fontFamily: fonts.arabic,
+                            fontSize: 19,
+                            lineHeight: arabicLineHeight(19),
+                          }
+                        : null,
                     ]}
                   >
                     {translationLabel(translation)}
@@ -150,7 +157,7 @@ export function TranslationPickerSheet({
       ))}
 
       <AppText variant="caption" tone="muted" style={styles.footnote}>
-        {`${groups.reduce((sum, group) => sum + group.translations.length, 0)} datasets bundled for offline reading. The website offers the full Tanzil registry; this build carries the most widely read editions so the download stays manageable.`}
+        {`${groups.reduce((sum, group) => sum + group.translations.length, 0)} datasets bundled for offline reading — every edition the website publishes. Only the selected one is unpacked on this device.`}
       </AppText>
     </BottomSheet>
   );

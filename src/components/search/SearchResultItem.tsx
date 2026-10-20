@@ -2,7 +2,9 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { translationInfo } from "../../features/settings/settings";
 import { useSettings } from "../../features/settings/SettingsProvider";
 import { useTheme } from "../../theme/ThemeProvider";
+import { arabicLineHeight } from "../../theme/typography";
 import type { SearchResult } from "../../types/quran";
+import { TranslationText } from "../quran/TranslationText";
 import { AppText } from "../ui/AppText";
 import { Pill } from "../ui/Pill";
 
@@ -53,8 +55,8 @@ export function SearchResultItem({
             color: colors.ink,
             fontFamily: fonts.arabic,
             fontSize: Math.min(26, Math.max(22, settings.arabicSize * 0.72)),
-            lineHeight: Math.round(
-              Math.min(26, Math.max(22, settings.arabicSize * 0.72)) * 1.9,
+            lineHeight: arabicLineHeight(
+              Math.min(26, Math.max(22, settings.arabicSize * 0.72)),
             ),
           },
         ]}
@@ -63,23 +65,13 @@ export function SearchResultItem({
       </AppText>
 
       {result.translation ? (
-        <AppText
+        <TranslationText
+          text={result.translation}
+          size={settings.translationSize}
+          rtl={translationIsRtl}
           numberOfLines={3}
-          maxFontSizeMultiplier={1.5}
-          style={[
-            styles.translation,
-            {
-              color: colors.muted,
-              fontFamily: translationIsRtl ? fonts.arabic : fonts.serif,
-              fontSize: settings.translationSize,
-              lineHeight: Math.round(settings.translationSize * 1.6),
-              textAlign: translationIsRtl ? "right" : "left",
-              writingDirection: translationIsRtl ? "rtl" : "ltr",
-            },
-          ]}
-        >
-          {result.translation}
-        </AppText>
+          style={styles.translation}
+        />
       ) : (
         <AppText variant="caption" tone="muted" style={styles.translation}>
           Translation unavailable for this result.

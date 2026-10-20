@@ -6,6 +6,7 @@ import { Card } from "../components/ui/Card";
 import { Icon } from "../components/ui/Icon";
 import { Screen } from "../components/ui/Screen";
 import { useTheme } from "../theme/ThemeProvider";
+import { arabicLineHeight } from "../theme/typography";
 import { tajweedColor } from "../theme/palette";
 import { TAJWEED_RULES } from "../features/quran/tajweed-rules";
 import {
@@ -90,7 +91,14 @@ export default function TajweedReferenceScreen() {
                   { borderColor: colors.border, backgroundColor: colors.paper },
                 ]}
               >
-                <AppText style={{ fontFamily: fonts.arabic, fontSize: 26, color: colors.ink }}>
+                <AppText
+                  style={{
+                    fontFamily: fonts.arabic,
+                    fontSize: 26,
+                    lineHeight: arabicLineHeight(26),
+                    color: colors.ink,
+                  }}
+                >
                   {mark.glyph}
                 </AppText>
               </View>
@@ -155,7 +163,12 @@ export default function TajweedReferenceScreen() {
                     ]}
                   >
                     <AppText
-                      style={{ fontFamily: fonts.arabic, fontSize: 24, color: colors.ink }}
+                      style={{
+                        fontFamily: fonts.arabic,
+                        fontSize: 24,
+                        lineHeight: arabicLineHeight(24),
+                        color: colors.ink,
+                      }}
                     >
                       {part.glyph}
                     </AppText>
@@ -262,9 +275,9 @@ const styles = StyleSheet.create({
     borderBottomColor: "transparent",
   },
   glyphBox: {
-    minWidth: 40,
-    height: 42,
+    minWidth: 46,
     paddingHorizontal: 6,
+    paddingVertical: 4,
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: "center",

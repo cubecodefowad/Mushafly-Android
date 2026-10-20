@@ -1,8 +1,10 @@
 import { Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "../../theme/ThemeProvider";
+import { arabicLineHeight } from "../../theme/typography";
 import { translationInfo } from "../../features/settings/settings";
 import type { ReaderSettings, Surah } from "../../types/quran";
 import { ArabicText } from "./ArabicText";
+import { TranslationText } from "./TranslationText";
 import { AppText } from "../ui/AppText";
 import { IconButton } from "../ui/IconButton";
 import { Ornament } from "../ui/Ornament";
@@ -75,20 +77,13 @@ export function SurahHeader({
             style={styles.bismillah}
           />
           {settings.showTranslation && bismillahTranslation ? (
-            <AppText
-              style={[
-                styles.bismillahTranslation,
-                {
-                  color: colors.muted,
-                  fontFamily: translationIsRtl ? fonts.arabic : fonts.serif,
-                  fontSize: settings.translationSize,
-                  lineHeight: Math.round(settings.translationSize * 1.7),
-                },
-              ]}
-              maxFontSizeMultiplier={1.5}
-            >
-              {bismillahTranslation}
-            </AppText>
+            <TranslationText
+              text={bismillahTranslation}
+              size={settings.translationSize}
+              rtl={translationIsRtl}
+              center
+              style={styles.bismillahTranslation}
+            />
           ) : null}
         </View>
       ) : null}
@@ -103,20 +98,25 @@ export function SurahHeader({
               accessibilityLabel={`Jump to the sajdah in verse ${verseNumber}`}
               hitSlop={4}
             >
-              <Pill icon={<AppText style={{ fontFamily: fonts.arabic, color: colors.accent }}>{"\u06e9"}</AppText>}>
-                Sajdah · verse {verseNumber}
-              </Pill>
+              <Pill
+              icon={
+                <AppText
+                  style={{
+                    fontFamily: fonts.arabic,
+                    color: colors.accent,
+                    fontSize: 14,
+                    lineHeight: arabicLineHeight(14),
+                  }}
+                >
+                  {"\u06e9"}
+                </AppText>
+              }
+            >
+              Sajdah · verse {verseNumber}
+            </Pill>
             </Pressable>
           ))}
         </View>
-      ) : null}
-
-      {surah.unavailableTajweedCount > 0 && settings.tajweed ? (
-        <AppText variant="caption" tone="muted" style={styles.limitation}>
-          {surah.unavailableTajweedCount} verse
-          {surah.unavailableTajweedCount === 1 ? "" : "s"} in this surah are shown
-          as plain text because the source Tajweed ranges do not align.
-        </AppText>
       ) : null}
     </View>
   );
@@ -164,9 +164,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     marginTop: 16,
-  },
-  limitation: {
-    marginTop: 14,
-    textAlign: "center",
   },
 });

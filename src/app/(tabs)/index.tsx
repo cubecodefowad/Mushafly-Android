@@ -113,7 +113,6 @@ export default function HomeScreen() {
             onStart={() => router.push(surahHref(1))}
             onBrowse={() => router.push("/surahs")}
             arabicFont={fonts.arabic}
-            translationFont={translation.direction === "rtl" ? fonts.arabic : fonts.serif}
             translationIsArabic={translation.direction === "rtl"}
             translationSize={settings.translationSize}
           />

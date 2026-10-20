@@ -8,6 +8,7 @@ import {
   type GestureResponderEvent,
 } from "react-native";
 import { useTheme } from "../../theme/ThemeProvider";
+import { arabicLineHeight } from "../../theme/typography";
 import { useAudio, useAudioProgress } from "../../features/audio/AudioProvider";
 import { formatTimestamp } from "../../utils/reference";
 import { AppText } from "../ui/AppText";
@@ -221,7 +222,7 @@ const styles = StyleSheet.create({
   arabic: {
     maxWidth: "34%",
     fontSize: 20,
-    lineHeight: 30,
+    lineHeight: arabicLineHeight(20),
     writingDirection: "rtl",
     textAlign: "right",
   },

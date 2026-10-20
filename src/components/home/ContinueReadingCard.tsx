@@ -1,11 +1,13 @@
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useTheme } from "../../theme/ThemeProvider";
+import { arabicLineHeight } from "../../theme/typography";
 import type { LastRead, SurahMeta } from "../../types/quran";
 import type { VersePreview } from "../../features/quran/repository";
 import { AppText } from "../ui/AppText";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { SajdahBadge } from "../quran/SajdahBadge";
+import { TranslationText } from "../quran/TranslationText";
 
 export function ContinueReadingCard({
   lastRead,
@@ -17,7 +19,6 @@ export function ContinueReadingCard({
   onStart,
   onBrowse,
   arabicFont,
-  translationFont,
   translationIsArabic,
   translationSize,
 }: {
@@ -30,7 +31,6 @@ export function ContinueReadingCard({
   onStart: () => void;
   onBrowse: () => void;
   arabicFont: string;
-  translationFont: string;
   translationIsArabic: boolean;
   translationSize: number;
 }) {
@@ -123,23 +123,13 @@ export function ContinueReadingCard({
               {preview.arabic}
             </AppText>
             {preview.translation ? (
-              <AppText
+              <TranslationText
+                text={preview.translation}
+                size={translationSize}
+                rtl={translationIsArabic}
                 numberOfLines={2}
-                maxFontSizeMultiplier={1.4}
-                style={[
-                  styles.previewTranslation,
-                  {
-                    color: colors.muted,
-                    fontFamily: translationFont,
-                    fontSize: translationSize,
-                    lineHeight: Math.round(translationSize * 1.65),
-                    textAlign: translationIsArabic ? "right" : "left",
-                    writingDirection: translationIsArabic ? "rtl" : "ltr",
-                  },
-                ]}
-              >
-                {preview.translation}
-              </AppText>
+                style={styles.previewTranslation}
+              />
             ) : null}
           </View>
         ) : previewLoading ? (
@@ -190,7 +180,7 @@ const styles = StyleSheet.create({
   arabicName: {
     maxWidth: "42%",
     fontSize: 26,
-    lineHeight: 42,
+    lineHeight: arabicLineHeight(26),
     textAlign: "right",
     writingDirection: "rtl",
   },
@@ -210,7 +200,7 @@ const styles = StyleSheet.create({
   previewArabic: {
     marginTop: 6,
     fontSize: 25,
-    lineHeight: 47,
+    lineHeight: arabicLineHeight(25),
     textAlign: "right",
     writingDirection: "rtl",
   },

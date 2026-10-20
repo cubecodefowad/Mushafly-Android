@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "../../theme/ThemeProvider";
+import { arabicLineHeight } from "../../theme/typography";
 import type { SurahMeta } from "../../types/quran";
 import { AppText } from "../ui/AppText";
 
@@ -86,7 +87,7 @@ const styles = StyleSheet.create({
   arabic: {
     maxWidth: "38%",
     fontSize: 24,
-    lineHeight: 38,
+    lineHeight: arabicLineHeight(24),
     textAlign: "right",
     writingDirection: "rtl",
   },

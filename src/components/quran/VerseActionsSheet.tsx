@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Platform, Pressable, StyleSheet, ToastAndroid, View } from "react-native";
 import { translationInfo } from "../../features/settings/settings";
 import { useTheme } from "../../theme/ThemeProvider";
+import { arabicLineHeight } from "../../theme/typography";
 import { BottomSheet } from "../ui/BottomSheet";
 import { AppText } from "../ui/AppText";
 import { SajdahBadge } from "./SajdahBadge";
@@ -130,7 +131,7 @@ export function VerseActionsSheet({
             fontFamily: fonts.arabic,
             color: colors.ink,
             fontSize: 26,
-            lineHeight: 40,
+            lineHeight: arabicLineHeight(26),
             writingDirection: "rtl",
           }}
           maxFontSizeMultiplier={1.25}

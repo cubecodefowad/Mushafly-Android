@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { useTheme } from "../../theme/ThemeProvider";
+import { arabicLineHeight } from "../../theme/typography";
 import { AppText } from "../ui/AppText";
 
 /**
@@ -44,7 +45,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   glyph: {
-    fontSize: 16,
-    lineHeight: 20,
+    fontSize: 14,
+    lineHeight: arabicLineHeight(14),
   },
 });

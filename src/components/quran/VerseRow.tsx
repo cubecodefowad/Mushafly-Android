@@ -1,9 +1,10 @@
 import { memo } from "react";
-import { Platform, Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { translationInfo } from "../../features/settings/settings";
 import { useTheme } from "../../theme/ThemeProvider";
 import { ArabicText } from "./ArabicText";
 import { SajdahBadge } from "./SajdahBadge";
+import { TranslationText } from "./TranslationText";
 import { AppText } from "../ui/AppText";
 import { IconButton } from "../ui/IconButton";
 import type { ReaderSettings, SurahMeta, Verse } from "../../types/quran";
@@ -31,7 +32,7 @@ function VerseRowComponent({
   onTogglePlay,
   onToggleBookmark,
 }: Props) {
-  const { colors, fonts } = useTheme();
+  const { colors } = useTheme();
   const translation = verse.translation;
   const rtlTranslation = translationInfo(verse.translationLanguage).direction === "rtl";
 
@@ -118,38 +119,12 @@ function VerseRowComponent({
 
       {settings.showTranslation ? (
         translation ? (
-          rtlTranslation ? (
-            <AppText
-              style={[
-                styles.translation,
-                styles.translationArabic,
-                {
-                  color: colors.muted,
-                  fontFamily: fonts.arabic,
-                  fontSize: settings.translationSize,
-                  lineHeight: Math.round(settings.translationSize * 2),
-                },
-              ]}
-              maxFontSizeMultiplier={1.6}
-            >
-              {translation}
-            </AppText>
-          ) : (
-            <AppText
-              style={[
-                styles.translation,
-                {
-                  color: colors.muted,
-                  fontFamily: fonts.serif,
-                  fontSize: settings.translationSize,
-                  lineHeight: Math.round(settings.translationSize * 1.72),
-                },
-              ]}
-              maxFontSizeMultiplier={1.6}
-            >
-              {translation}
-            </AppText>
-          )
+          <TranslationText
+            text={translation}
+            size={settings.translationSize}
+            rtl={rtlTranslation}
+            style={styles.translation}
+          />
         ) : verse.number === 0 ? null : (
           <AppText variant="caption" tone="muted" style={styles.translation}>
             This dataset has no row for this verse.
@@ -168,7 +143,6 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingBottom: 20,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    ...(Platform.OS === "android" ? { overflow: "hidden" } : null),
   },
   metaRow: {
     flexDirection: "row",
@@ -197,9 +171,5 @@ const styles = StyleSheet.create({
   },
   translation: {
     marginTop: 10,
-  },
-  translationArabic: {
-    textAlign: "right",
-    writingDirection: "rtl",
   },
 });

@@ -1,6 +1,7 @@
 import { StyleSheet, Text, type StyleProp, type TextStyle } from "react-native";
 import { useTheme } from "../../theme/ThemeProvider";
 import { tajweedColor } from "../../theme/palette";
+import { arabicLineHeight } from "../../theme/typography";
 import type { RenderSegment } from "../../types/quran";
 
 export function ArabicText({
@@ -41,7 +42,7 @@ export function ArabicText({
           color: baseColor,
           fontFamily: fonts.arabic,
           fontSize: size,
-          lineHeight: Math.round(size * 2.12),
+          lineHeight: arabicLineHeight(size),
           textAlign: center ? "center" : "right",
         },
         style,

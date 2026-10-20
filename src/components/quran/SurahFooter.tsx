@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { router } from "expo-router";
 import { SOURCE_INFO } from "../../data/generated/source";
 import { useTheme } from "../../theme/ThemeProvider";
+import { arabicLineHeight } from "../../theme/typography";
 import { surahHref } from "../../utils/reference";
 import type { SurahMeta } from "../../types/quran";
 import { AppText } from "../ui/AppText";
@@ -143,7 +144,7 @@ const styles = StyleSheet.create({
   },
   adjacentArabic: {
     fontSize: 20,
-    lineHeight: 30,
+    lineHeight: arabicLineHeight(20),
     writingDirection: "rtl",
   },
   source: {

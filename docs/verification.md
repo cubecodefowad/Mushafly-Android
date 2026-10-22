@@ -32,6 +32,7 @@ checkout present, all 6,348 rows are compared byte for byte against
 | `npx expo prebuild --platform android --no-install --clean` | pass — `styles.xml` carries `expoNavigationBarHidden=true`, so the navigation bar is hidden at activity creation, before the JS bundle loads |
 | APK build (1.1.0) | pass in GitHub Actions (run [39474437023](https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39474437023), commit `244f5e7`, version 1.1.0): artifact `mushafly-apk`, 60 MB zip, release APK built with the generated debug keystore; every step including `npm run verify` succeeded |
 | APK build (1.1.1) | pass in GitHub Actions (run [39484332914](https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39484332914), commit `0090c64`, version 1.1.1 / versionCode 3): artifact `mushafly-apk`, 68 MB zip, release APK built with the generated debug keystore; every step including `npm run verify` succeeded |
+| APK build (1.3.0) | pass in GitHub Actions (run [39821833643](https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39821833643), commit `04dda29`, version 1.3.0 / versionCode 5): artifact `mushafly-apk`, 68.4 MB zip, release APK built with the generated debug keystore; every step including `npm run verify` succeeded |
 | APK on a device | **not run** — no device or emulator was available to this workspace |
 
 The export is not a substitute for a device test, and neither is the APK build.

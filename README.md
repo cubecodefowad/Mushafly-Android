@@ -65,13 +65,16 @@ what has not been verified.
 the data, types and tests, prebuilds the native project and builds a release APK
 on every push to `main` (or from **Actions → Android APK → Run workflow**).
 
-An APK for commit `0090c64` (version 1.1.1) was built successfully:
+An APK for commit `04dda29` (version 1.3.0, versionCode 5) was built
+successfully:
 
-- Run: <https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39484332914>
-- Artifact: **mushafly-apk** (68 MB zip, containing `mushafly.apk`), downloadable
-  from the run page while the artifact is retained.
+- Run: <https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39821833643>
+- Artifact: **mushafly-apk** (68.4 MB zip, containing `mushafly.apk`), downloadable
+  from the run page while the artifact is retained (expires 2027-01-20).
 
-(The earlier 1.1.0 build is at
+(Earlier builds: 1.1.1 at run
+<https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39484332914>,
+1.1.0 at run
 <https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39474437023>.)
 - Signing: the CI release build uses the generated debug keystore. It installs
   on a phone for testing, but it is **not** a Play Store signing identity.

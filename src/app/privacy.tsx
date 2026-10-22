@@ -87,11 +87,13 @@ export default function PrivacyScreen() {
             reference page work without a network connection.
           </AppText>
           <AppText tone="muted" style={styles.body}>
-            The only request is recitation audio, and only when you press play. Verses
-            are streamed as MP3 files from raw.githubusercontent.com, so GitHub sees
-            your IP address and user agent and handles that data under its own privacy
-            statement. If you never play a verse, the app makes no network request at
-            all.
+            The only request is recitation audio, and only when you press play. The
+            default reciter streams MP3 files from raw.githubusercontent.com, so GitHub
+            sees your IP address and user agent and handles that data under its own
+            privacy statement. Another reciter streams from everyayah.com, which then
+            sees the same information; it publishes no privacy statement of its own.
+            The app never sends which verse you are reading to Mushafly or anywhere
+            else. If you never play a verse, the app makes no network request at all.
           </AppText>
           <Pressable
             onPress={() =>
@@ -104,6 +106,17 @@ export default function PrivacyScreen() {
           >
             <AppText variant="label" style={{ color: colors.accent }}>
               GitHub&apos;s privacy statement
+            </AppText>
+          </Pressable>
+          <Pressable
+            onPress={() =>
+              void Linking.openURL("https://everyayah.com/").catch(() => {})
+            }
+            accessibilityRole="link"
+            style={styles.linkRow}
+          >
+            <AppText variant="label" style={{ color: colors.accent }}>
+              everyayah.com (no published privacy statement)
             </AppText>
           </Pressable>
         </Section>

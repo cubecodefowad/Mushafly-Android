@@ -5,6 +5,7 @@ import { TAJWEED_RULES } from "./tajweed-rules";
 import { excerptFor, normalize, normalizeForSearch } from "./normalize";
 import type {
   AudioReference,
+  SearchMode,
   SearchResult,
   Surah,
   SurahMeta,
@@ -378,6 +379,7 @@ export async function searchVerses(
   db: QuranDatabase,
   rawQuery: string,
   language: TranslationLanguage,
+  mode: SearchMode = "all",
   limit = 120,
 ): Promise<SearchResult[]> {
   const arabicQuery = normalize(rawQuery.trim());
@@ -387,7 +389,7 @@ export async function searchVerses(
   const metas = await listSurahs(db);
   const results = new Map<string, SearchResult>();
 
-  if (arabicQuery.length >= 2) {
+  if (mode !== "translation" && arabicQuery.length >= 2) {
     const rows = await db.getAllAsync<{ surah: number; verse: number; arabic: string }>(
       `SELECT surah, verse, arabic FROM verses
        WHERE verse > 0 AND instr(arabic_search, ?) > 0
@@ -410,7 +412,7 @@ export async function searchVerses(
     }
   }
 
-  if (textQuery.length >= 2) {
+  if (mode !== "arabic" && textQuery.length >= 2) {
     const index = await translationIndex(db, language);
     let arabicText = arabicTextCache.get(db);
     if (!arabicText) {

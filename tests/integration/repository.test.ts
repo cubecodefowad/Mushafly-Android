@@ -153,6 +153,18 @@ describe("Quran repository against the shipped database", () => {
     expect(results[0].surahNumber).toBeGreaterThanOrEqual(1);
   });
 
+  it("honours the search scope filter", async () => {
+    const arabicOnly = await searchVerses(adapter, "الرحمن", "en", "arabic");
+    expect(arabicOnly.length).toBeGreaterThan(0);
+    expect(arabicOnly.every((result) => result.matchField === "arabic")).toBe(true);
+    expect(await searchVerses(adapter, "الرحمن", "en", "translation")).toEqual([]);
+
+    const translated = await searchVerses(adapter, "the most merciful", "en", "translation");
+    expect(translated.length).toBeGreaterThan(0);
+    expect(translated.every((result) => result.matchField === "translation")).toBe(true);
+    expect(await searchVerses(adapter, "the most merciful", "en", "arabic")).toEqual([]);
+  });
+
   it("never returns the unnumbered Bismillah row as a search result", async () => {
     const arabic = await searchVerses(adapter, "بسم الله", "en");
     expect(arabic.every((result) => result.verseNumber > 0)).toBe(true);

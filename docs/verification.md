@@ -10,6 +10,7 @@ npm install
 npm run typecheck
 npm run data:validate
 npm test
+npm run reciters:sync   # optional; needs the website checkout
 npx expo export --platform android
 ```
 
@@ -25,9 +26,10 @@ checkout present, all 6,348 rows are compared byte for byte against
 | --- | --- |
 | `npx tsc --noEmit` | pass, no errors |
 | `npm run data:validate` | pass — pinned hash, 114 surahs, 6,236 numbered verses, 112 Bismillah rows, 68 translation datasets / 424,272 rows decompressed and checked, 15 sajdah refs, 60,841 Tajweed ranges, 147 intentionally plain verses, 1,446-glyph font covers every displayed Arabic code point, 6,348 rows byte-compared with the source; database 33.20 MiB |
-| `npm test` | pass — 11 suites, 70 tests |
-| `npx expo export --platform android` | pass — Hermes bundle 4.8 MB, 33.20 MB database asset present in the export, 42 MB export directory |
-| `npx expo-doctor` | pass — 20/20 checks |
+| `npm test` | pass — 12 suites, 81 tests |
+| `npx expo export --platform android` | pass — Hermes bundle 4.8 MB, 33.20 MB database asset present in the export |
+| `npx expo-doctor` | pass — 20/20 checks after `expo install --fix` moved 11 SDK packages to their current patch releases |
+| `npx expo prebuild --platform android --no-install --clean` | pass — `styles.xml` carries `expoNavigationBarHidden=true`, so the navigation bar is hidden at activity creation, before the JS bundle loads |
 | APK build (1.1.0) | pass in GitHub Actions (run [39474437023](https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39474437023), commit `244f5e7`, version 1.1.0): artifact `mushafly-apk`, 60 MB zip, release APK built with the generated debug keystore; every step including `npm run verify` succeeded |
 | APK build (1.1.1) | pass in GitHub Actions (run [39484332914](https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39484332914), commit `0090c64`, version 1.1.1 / versionCode 3): artifact `mushafly-apk`, 68 MB zip, release APK built with the generated debug keystore; every step including `npm run verify` succeeded |
 | APK on a device | **not run** — no device or emulator was available to this workspace |
@@ -59,8 +61,13 @@ Unit tests:
 - `canStreamAudio` treats only an explicit disconnection or unreachable network
   as offline, allows a play attempt when reachability is unknown, and the
   offline/timeout messages always explain the failure.
-- `parseSettings` clamps sizes, rejects bad themes and translations, ignores
-  unknown keys and falls back to defaults for malformed storage.
+- `parseSettings` clamps sizes, rejects bad themes, translations and reciters,
+  ignores unknown keys and falls back to defaults for malformed storage.
+- The recitation catalogue exposes the pinned default plus the 70 audited
+  everyayah editions (71 total), has unique ids, builds zero-padded URLs, keeps
+  the pinned URL for the default, uses a folder's own `NNN000` Bismillah when it
+  exists, falls back to Al-Fatiha 1:1 when it does not, and returns null when
+  the pinned row has no audio at all.
 - Reference helpers produce stable `surah:verse` keys and safe timestamps.
 - The sign reference documents the sajdah sign, and `SAJDAH_VERSES` is exactly
   the 15 unique, ordered references.
@@ -94,15 +101,17 @@ Integration tests:
   annotation: no colour run may start on a mark attached to a letter or inside a
   joined word. It confirms the selected dataset is read from the translations
   payload (`en.sahih` differs from `en`, all six Urdu editions return Urdu
-  script), that only `en` and `id` carry Bismillah rows, and that search follows
-  the selected dataset in both English and Urdu.
+  script), that only `en` and `id` carry Bismillah rows, that search follows the
+  selected dataset in both English and Urdu, and that the Arabic-only and
+translation-only scopes exclude each other's matches.
 
 Not covered by automated tests: the SQLite copy-on-first-launch path, audio
-lifecycle on a real device, gesture and scroll performance, safe areas and
-cutouts, Android process death, the visual result of the new Arabic line
-metrics, whether the system bars actually hide in fullscreen, and how long the
-first decompression of a dataset takes on a low-end phone. These need an
-emulator or phone.
+lifecycle on a real device, whether every everyayah folder actually serves its
+files to this app, gesture and scroll performance, safe areas and cutouts,
+Android process death, the visual result of the new Arabic line metrics, whether
+the Android navigation bar stays hidden while the status bar stays visible, and
+how long the first decompression of a dataset takes on a low-end phone. These
+need an emulator or phone.
 
 ## Reader fixes in 1.1.0
 
@@ -122,7 +131,16 @@ emulator or phone.
 | Tajweed signs missing or half visible; Arabic names and translated text cut off at the bottom | Amiri Quran's ascent is 1.815 em and its descent 0.634 em, so its line box is 2.449 em. React Native on Android rewrites the font metrics to whatever `lineHeight` is supplied, so every Arabic text set below that (2.12 em in the reader, 1.9 em in search, 1.58 em in the surah list) clipped the ink above and below the line. Urdu and other RTL translations were also set in Amiri Quran at 2.0 em, and that face has no Urdu glyphs at all | Arabic text now asks for `ceil(size × 2.5)` through one helper; translations use the device script font and no explicit line height, so the platform measures the line box; the Tajweed reference cells grow to fit their glyph instead of using a fixed 42 px box | `ArabicText.test.tsx` asserts the 2.449 em minimum; `TranslationText.test.tsx` asserts no `lineHeight` and the device font for RTL; the font metrics were measured from `AmiriQuran-Regular.ttf` with fontkit (1446 glyphs, no U+0679/U+0688/U+06D2) |
 | Only two Urdu editions; other datasets missing | The importer carried a hand-written list of 30 datasets while the website publishes 68. Storing every row as a SQLite row would also have grown the committed database to 164 MB, past the 100 MB limit for a Git file | The importer now reads the website's translation registry, so all 68 editions (29 language groups, six Urdu) are bundled. Rows are written as one gzipped JSON payload per dataset and decompressed on selection, which brings the database back to 33.2 MB | Validator decompresses every payload: 68 datasets, 424,272 rows, every row byte-compared with the site; repository tests read all six Urdu editions |
 | No fullscreen mode; the navigation bar stayed visible | The reader had no immersive mode and never asked Android to hide the system bars | The reader toolbar gains a fullscreen action that hides the status and navigation bars, removes the app header and progress bar, and restores both bars when fullscreen is left or the screen closes | Code path in `surah/[number].tsx`; needs a device pass to confirm gesture navigation and cutout behaviour |
+| 1.1.1 hid the status bar as well, and the navigation bar only disappeared inside the reader | The reader toggled both bars itself and restored them on unmount, so every other screen showed the bar again | The navigation bar is hidden app-wide, starting from the native theme at activity creation and reasserted by the root layout; the status bar is never hidden. The reader's expand action is now focus mode and only removes the app header and progress bar | `app.json` runs `expo-navigation-bar` with `hidden: true`; `_layout.tsx` mounts `<NavigationBar hidden />`; `surah/[number].tsx` no longer touches the system bars; needs a device pass to confirm swipe-to-reveal and insets |
 | The “N verses are shown as plain text” note appeared twice, after the Bismillah and after the Tajweed colours | The note was rendered in `SurahHeader` and again in `TajweedLegend` | It is rendered once, above the colour chips, where it introduces the Tajweed colours | Component tree |
+
+## Website parity in 1.3.0
+
+| Website feature | App before | What changed | Evidence |
+| --- | --- | --- | --- |
+| Reciter choice: pinned default plus 70 audited everyayah editions, grouped as Hafs, Warsh and translated recitations | One hard-coded reciter; every verse played the pinned URL | The app consumes the website's audited `reciters.json` through `scripts/sync-reciters.mjs`, persists `settings.reciter` (unknown ids fall back to the default), resolves each verse against the chosen source, and stops playback when the reciter changes. Settings gains a themed, searchable picker and attribution; Privacy, Terms and About now name both hosts | `reciters.test.ts` covers the catalogue, URL building and the Bismillah fallback in both directions; `settings.test.ts` covers persistence and fallback; the TypeScript check and the export include the new sheet |
+| A themed translation chooser whose search field is focused on open | Themed searchable sheet, but the field was never focused | The sheet focuses its search input after the modal animation starts, matching the website's behaviour | Component is bundled; focus is visual and needs a device pass |
+| All / Arabic / translation search filter | Search always covered both fields | `searchVerses` accepts a scope, `useSearch` passes it through, and the search screen gains the same three-way segmented filter with scope-aware empty states | Repository integration test asserts Arabic-only and translation-only results exclude each other's matches |
 
 ## Sajdah investigation
 
@@ -198,8 +216,12 @@ with the source commit, license and translation credits.
 
 - The APK was produced by CI, not by this workspace, and has not been installed
   on a device. Its signing identity is the debug keystore.
-- Audio is streamed from the pinned source; the app does not claim offline
-  recitation. An offline press now explains this instead of spinning.
+- Audio is streamed from the pinned source or from everyayah.com; the app does
+  not claim offline recitation. An offline press now explains this instead of
+  spinning.
+- The 70 everyayah editions were audited for file presence by the website, not
+  listened to in this workspace. A missing or unavailable file surfaces the
+  normal retry message.
 - Tajweed colour is applied to the touched word span when a rule begins inside a
   joined word, because character-level runs disconnect Arabic letters on
   Android. The letters themselves are never changed.

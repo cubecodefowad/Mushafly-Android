@@ -71,8 +71,10 @@ export default function TermsScreen() {
           </AppText>
           <AppText tone="muted" style={styles.body}>
             The dataset is a third-party work. Translations and commentary come from
-            Tanzil.net and the pinned quranjson source, and recitation is by{" "}
-            {SOURCE_INFO.audio.reciter} from {SOURCE_INFO.audio.source}. Those are
+            Tanzil.net and the pinned quranjson source, and the default recitation is
+            by {SOURCE_INFO.audio.reciter} from {SOURCE_INFO.audio.source}. Other
+            recitations offered in Settings are streamed from everyayah.com, a
+            separate third-party host that publishes no terms of its own. Those are
             separate works under their own terms. Mushafly&apos;s own software is
             released under the MIT license.
           </AppText>
@@ -108,10 +110,10 @@ export default function TermsScreen() {
             receive them.
           </AppText>
           <AppText tone="muted" style={styles.body}>
-            Recitation audio is streamed from a third-party host and can be unavailable,
-            especially offline. The application is provided &quot;as is&quot;, without
-            warranties of any kind, and access may be changed, interrupted or
-            discontinued at any time.
+            Recitation audio is streamed from third-party hosts and can be
+            unavailable, especially offline, or missing for a particular reciter. The
+            application is provided &quot;as is&quot;, without warranties of any kind, and
+            access may be changed, interrupted or discontinued at any time.
           </AppText>
         </Section>
 

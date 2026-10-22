@@ -8,6 +8,7 @@ import { Icon } from "../components/ui/Icon";
 import { Screen } from "../components/ui/Screen";
 import { SajdahBadge } from "../components/quran/SajdahBadge";
 import { DATA_LOCK, SOURCE_INFO } from "../data/generated/source";
+import { EXCLUDED_RECITERS, RECITERS } from "../features/audio/reciters";
 import { SAJDAH_VERSES } from "../features/quran/text-marks";
 import { groupedTranslations, translationLabel } from "../features/settings/settings";
 import { useTheme } from "../theme/ThemeProvider";
@@ -131,9 +132,14 @@ export default function AboutScreen() {
             Recitation and font
           </AppText>
           <AppText variant="caption" tone="muted" style={styles.body}>
-            {SOURCE_INFO.audio.reciter}, {SOURCE_INFO.audio.source},{" "}
-            {SOURCE_INFO.audio.bitrate ?? "streamed"}. Arabic type: Amiri Quran,
-            bundled under the SIL Open Font License.
+            Default: {SOURCE_INFO.audio.reciter}, {SOURCE_INFO.audio.source},{" "}
+            {SOURCE_INFO.audio.bitrate ?? "streamed"}. {RECITERS.length - 1}{" "}
+            further editions are offered in Settings — Arabic Hafs, two Warsh
+            readings and translated recitations — each streamed per ayah from
+            everyayah.com, which publishes no terms of its own.{" "}
+            {EXCLUDED_RECITERS.length} audited folders are not offered because
+            files are missing or were excluded on request. Arabic type: Amiri
+            Quran, bundled under the SIL Open Font License.
           </AppText>
         </Card>
 
@@ -224,7 +230,7 @@ export default function AboutScreen() {
             "This build does not claim a complete manual comparison against a printed Mushaf. Source-fidelity tests preserve the selected text; they are not an independent religious verification.",
             "The 15 sajdah positions and the treatment of special marks are the highest-risk cases for manual review. They match the pinned source and render visibly, but a qualified reviewer should confirm them before publication.",
             "147 verses intentionally render without Tajweed colour because the supplied ranges are out of bounds or overlap. The source Arabic is still displayed in full.",
-            "Recitation is streamed from the source and needs internet. The app does not include or claim offline audio.",
+            "Recitation is streamed per ayah from the pinned dataset or from everyayah.com, depending on the reciter chosen in Settings, and needs internet. The app does not include or claim offline audio, and the everyayah editions have not been independently reviewed here.",
             "Translations can differ legitimately in wording and interpretation. A difference from another translation is not automatically a software defect.",
           ].map((item) => (
             <View key={item} style={styles.bulletRow}>

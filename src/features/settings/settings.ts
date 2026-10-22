@@ -1,4 +1,5 @@
 import { SOURCE_INFO } from "../../data/generated/source";
+import { DEFAULT_RECITER, isReciterId } from "../audio/reciters";
 import type {
   ReaderSettings,
   ThemePreference,
@@ -18,6 +19,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   showTranslation: true,
   tajweed: true,
   translation: DEFAULT_TRANSLATION,
+  reciter: DEFAULT_RECITER,
   autoAdvanceAudio: true,
   followAudio: true,
 };
@@ -91,6 +93,7 @@ export function parseSettings(value: unknown): ReaderSettings {
   const translation = isTranslationLanguage(input.translation)
     ? input.translation
     : DEFAULT_SETTINGS.translation;
+  const reciter = isReciterId(input.reciter) ? input.reciter : DEFAULT_SETTINGS.reciter;
 
   return {
     theme,
@@ -109,6 +112,7 @@ export function parseSettings(value: unknown): ReaderSettings {
     showTranslation: bool("showTranslation", DEFAULT_SETTINGS.showTranslation),
     tajweed: bool("tajweed", DEFAULT_SETTINGS.tajweed),
     translation,
+    reciter,
     autoAdvanceAudio: bool("autoAdvanceAudio", DEFAULT_SETTINGS.autoAdvanceAudio),
     followAudio: bool("followAudio", DEFAULT_SETTINGS.followAudio),
   };

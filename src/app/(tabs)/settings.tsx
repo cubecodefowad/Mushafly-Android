@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import * as Linking from "expo-linking";
 import { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ReciterPickerSheet } from "../../components/settings/ReciterPickerSheet";
 import { TranslationPickerSheet } from "../../components/settings/TranslationPickerSheet";
 import { AppText } from "../../components/ui/AppText";
 import { Button } from "../../components/ui/Button";
@@ -14,6 +15,11 @@ import { Segmented } from "../../components/ui/Segmented";
 import { Stepper } from "../../components/ui/Stepper";
 import { SwitchRow } from "../../components/ui/SwitchRow";
 import { DATA_LOCK, SOURCE_INFO } from "../../data/generated/source";
+import {
+  EXCLUDED_RECITERS,
+  RECITERS,
+  reciterInfo,
+} from "../../features/audio/reciters";
 import {
   SETTINGS_LIMITS,
   TRANSLATIONS,
@@ -92,9 +98,11 @@ export default function SettingsScreen() {
   const { colors } = useTheme();
   const { settings, update, reset, storageError } = useSettings();
   const activeTranslation = translationInfo(settings.translation);
+  const activeReciter = reciterInfo(settings.reciter);
   const databaseMiB = (DATA_LOCK.output.databaseBytes / 1024 / 1024).toFixed(1);
   const version = Constants.expoConfig?.version ?? "1.0.0";
   const [translationOpen, setTranslationOpen] = useState(false);
+  const [reciterOpen, setReciterOpen] = useState(false);
 
   return (
     <Screen>
@@ -237,13 +245,28 @@ export default function SettingsScreen() {
             onValueChange={(followAudio) => update({ followAudio })}
           />
           <View style={[styles.rule, { backgroundColor: colors.border }]} />
+          <InfoRow
+            label="Reciter"
+            value={`${activeReciter.name} · ${activeReciter.bitrate ?? "streamed"}`}
+            onPress={() => setReciterOpen(true)}
+          />
+          <AppText variant="caption" tone="muted" style={styles.help}>
+            {RECITERS.length} recitations are offered: Arabic Hafs, two Warsh
+            readings and translated recitations.{" "}
+            {activeReciter.folder
+              ? `${activeReciter.name} streams one file per ayah from everyayah.com.`
+              : `${activeReciter.name} is the pinned default, streamed per ayah from the source dataset.`}{" "}
+            Changing reciter stops playback so the next verse starts from the
+            source you chose.
+          </AppText>
+          <View style={[styles.rule, { backgroundColor: colors.border }]} />
           <AppText variant="caption" tone="muted" style={styles.audioNote}>
-            Audio is streamed from the pinned quranjson source and needs an
-            internet connection. The app does not bundle recitation files, does
-            not download them, and does not claim offline audio. Pressing play
-            offline explains that, and a stream that cannot start fails with a
-            retry action instead of loading forever. Playback pauses when the app
-            leaves the foreground. Only one recitation can play at a time.
+            Audio is streamed and needs an internet connection. The app does not
+            bundle recitation files, does not download them, and does not claim
+            offline audio. Pressing play offline explains that, and a stream that
+            cannot start fails with a retry action instead of loading forever.
+            Playback pauses when the app leaves the foreground. Only one
+            recitation can play at a time.
           </AppText>
         </Card>
 
@@ -271,6 +294,10 @@ export default function SettingsScreen() {
           <InfoRow
             label="Recitation"
             value={`${SOURCE_INFO.audio.reciter} · ${SOURCE_INFO.audio.source} · ${SOURCE_INFO.audio.bitrate ?? "streamed"}`}
+          />
+          <InfoRow
+            label="Recitation catalogue"
+            value={`${RECITERS.length} editions · everyayah.com · ${EXCLUDED_RECITERS.length} audited folders not offered`}
           />
           <InfoRow label="Bundled database" value={`${databaseMiB} MiB · schema 2`} />
           <InfoRow label="Arabic font" value="Amiri Quran · SIL Open Font License" />
@@ -304,6 +331,15 @@ export default function SettingsScreen() {
           onChange={(translation) => update({ translation })}
         />
 
+        <ReciterPickerSheet
+          visible={reciterOpen}
+          value={settings.reciter}
+          onClose={() => setReciterOpen(false)}
+          onChange={(reciter) => {
+            if (reciter !== settings.reciter) update({ reciter });
+          }}
+        />
+
         <View style={styles.reset}>
           <Button
             label="Reset reading settings"
@@ -312,7 +348,7 @@ export default function SettingsScreen() {
             onPress={() =>
               Alert.alert(
                 "Reset reading settings?",
-                "Theme, type sizes, translation and Tajweed return to their defaults. Bookmarks and your reading position are not deleted.",
+                "Theme, type sizes, translation, reciter and Tajweed return to their defaults. Bookmarks and your reading position are not deleted.",
                 [
                   { text: "Cancel", style: "cancel" },
                   { text: "Reset", style: "destructive", onPress: reset },

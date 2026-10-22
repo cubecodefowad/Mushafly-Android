@@ -1,4 +1,5 @@
 import { useFonts } from "expo-font";
+import { NavigationBar } from "expo-navigation-bar";
 import { Stack, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -55,6 +56,10 @@ function AppShell() {
 
   return (
     <>
+      {/* The Android navigation bar is hidden for the whole app, not just the
+          reader, so the bottom of every screen is free of system chrome. The
+          status bar stays visible: WiFi, battery and the clock are wanted. */}
+      <NavigationBar hidden />
       <StatusBar style={isDark ? "light" : "dark"} />
       <Stack
         screenOptions={{

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAppDatabase } from "../../data/AppDatabaseProvider";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
-import type { SearchResult, TranslationLanguage } from "../../types/quran";
+import type { SearchMode, SearchResult, TranslationLanguage } from "../../types/quran";
 import { searchVerses } from "../quran/repository";
 
 type SearchState = {
@@ -11,7 +11,11 @@ type SearchState = {
   activeQuery: string;
 };
 
-export function useSearch(query: string, language: TranslationLanguage) {
+export function useSearch(
+  query: string,
+  language: TranslationLanguage,
+  mode: SearchMode = "all",
+) {
   const { quran } = useAppDatabase();
   const debounced = useDebouncedValue(query.trim(), 180);
   const [state, setState] = useState<SearchState>({
@@ -34,7 +38,7 @@ export function useSearch(query: string, language: TranslationLanguage) {
       error: null,
       activeQuery: debounced,
     });
-    searchVerses(quran, debounced, language)
+    searchVerses(quran, debounced, language, mode)
       .then((results) => {
         if (!cancelled) {
           setState({ results, status: "ready", error: null, activeQuery: debounced });
@@ -53,7 +57,7 @@ export function useSearch(query: string, language: TranslationLanguage) {
     return () => {
       cancelled = true;
     };
-  }, [quran, debounced, language, revision]);
+  }, [quran, debounced, language, mode, revision]);
 
   const retry = useCallback(() => setRevision((value) => value + 1), []);
   return { ...state, retry, debouncedQuery: debounced };

@@ -21,6 +21,7 @@ describe("reader settings", () => {
       showTranslation: false,
       tajweed: false,
       translation: "en",
+      reciter: "abdul-basit-mujawwad-128kbps",
       autoAdvanceAudio: false,
       unknownKey: "ignored",
     });
@@ -30,6 +31,7 @@ describe("reader settings", () => {
     expect(parsed.showTranslation).toBe(false);
     expect(parsed.tajweed).toBe(false);
     expect(parsed.autoAdvanceAudio).toBe(false);
+    expect(parsed.reciter).toBe("abdul-basit-mujawwad-128kbps");
     expect(parsed).not.toHaveProperty("unknownKey");
   });
 
@@ -51,10 +53,11 @@ describe("reader settings", () => {
     expect(parseSettings({ arabicSize: 34.6 }).arabicSize).toBe(35);
   });
 
-  it("falls back for an unknown theme or translation", () => {
-    const parsed = parseSettings({ theme: "sepia", translation: "fr" });
+  it("falls back for an unknown theme, translation or reciter", () => {
+    const parsed = parseSettings({ theme: "sepia", translation: "fr", reciter: "nobody" });
     expect(parsed.theme).toBe(DEFAULT_SETTINGS.theme);
     expect(parsed.translation).toBe(DEFAULT_SETTINGS.translation);
+    expect(parsed.reciter).toBe(DEFAULT_SETTINGS.reciter);
   });
 
   it("steps font size inside its limits", () => {

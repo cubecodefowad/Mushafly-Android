@@ -71,6 +71,56 @@ export type AudioReference = {
   size: number;
 };
 
+export type ReciterKind = "hafs" | "warsh" | "translation";
+
+/** Search scope, matching the website's All / Arabic / translation filter. */
+export type SearchMode = "all" | "arabic" | "translation";
+
+/** Stable slug, stored in settings. */
+export type ReciterId = string;
+
+export type Reciter = {
+  id: ReciterId;
+  name: string;
+  /** Human-readable bitrate, or null when the folder name omits it. */
+  bitrate: string | null;
+  kind: ReciterKind;
+  /** Language of the recitation; Arabic for Hafs and Warsh. */
+  language: string;
+  source: string;
+  sourceUrl: string;
+  /** everyayah folder name; null uses the pinned per-verse URLs. */
+  folder: string | null;
+  /** Whether the folder ships its own NNN000.mp3 Bismillah files. */
+  bismillahFiles: boolean;
+};
+
+export type ExcludedReciter = {
+  name: string;
+  folder: string;
+  reason: "requested" | "incomplete";
+  missingAyahs?: number;
+  note?: string;
+};
+
+/** The shape of the website's audited `reciters.json`. */
+export type ReciterManifest = {
+  source: { page: string; audioOrigin: string; retrieved: string };
+  expected: { ayahs: number; bismillah: number };
+  counts: { offered: number; excluded: number };
+  reciters: Array<{
+    id: string;
+    name: string;
+    folder: string;
+    bitrate: number | null;
+    kind: ReciterKind;
+    language: string;
+    bismillah: boolean;
+    files?: number;
+  }>;
+  excluded: ExcludedReciter[];
+};
+
 export type Verse = {
   surahNumber: number;
   /** 0 is the unnumbered Bismillah row, where the source supplies one. */
@@ -127,6 +177,8 @@ export type ReaderSettings = {
   showTranslation: boolean;
   tajweed: boolean;
   translation: TranslationLanguage;
+  /** Recitation source; `ghamadi` is the pinned per-verse default. */
+  reciter: ReciterId;
   autoAdvanceAudio: boolean;
   /** Follow the verse being recited while it plays. */
   followAudio: boolean;

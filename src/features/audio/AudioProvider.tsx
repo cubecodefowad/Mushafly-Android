@@ -23,6 +23,7 @@ import {
   OFFLINE_AUDIO_MESSAGE,
   canStreamAudio,
 } from "./connectivity";
+import { recitationUrl } from "./reciters";
 
 export type AudioTrack = {
   surah: SurahMeta;
@@ -79,12 +80,14 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const currentRef = useRef<AudioTrack | null>(null);
   const currentTimeRef = useRef(0);
   const autoAdvanceRef = useRef(settings.autoAdvanceAudio);
+  const reciterRef = useRef(settings.reciter);
   const playRef = useRef<(surah: SurahMeta, verse: Verse, queue: Verse[]) => void>(() => {});
   const requestRef = useRef(0);
 
   currentRef.current = current;
   currentTimeRef.current = status.currentTime;
   autoAdvanceRef.current = settings.autoAdvanceAudio;
+  reciterRef.current = settings.reciter;
 
   useEffect(() => {
     setAudioModeAsync({
@@ -113,8 +116,14 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const playVerse = useCallback(
     (surah: SurahMeta, verse: Verse, queue: Verse[]) => {
       const request = ++requestRef.current;
+      const url = recitationUrl(
+        reciterRef.current,
+        surah.number,
+        verse.number,
+        verse.audio?.url ?? null,
+      );
 
-      if (!verse.audio) {
+      if (!url) {
         setCurrent({ surah, verse, queue });
         setLocalError(
           verse.audioUnavailableReason ?? "The source has no recitation for this verse.",
@@ -135,7 +144,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         }
         if (request !== requestRef.current) return;
         try {
-          player.replace({ uri: verse.audio!.url });
+          player.replace({ uri: url });
           player.play();
         } catch {
           if (request !== requestRef.current) return;
@@ -210,6 +219,16 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     setCurrent(null);
     setLocalError(null);
   }, [player]);
+
+  // Switching reciter mid-verse would otherwise leave the old file playing
+  // under the new name, so playback stops and waits for a new press. This
+  // mirrors the website, where the audio element is unloaded on the change.
+  const previousReciter = useRef(settings.reciter);
+  useEffect(() => {
+    if (previousReciter.current === settings.reciter) return;
+    previousReciter.current = settings.reciter;
+    stop();
+  }, [settings.reciter, stop]);
 
   const error = audioError(status, localError);
   const loading = Boolean(current) && !status.isLoaded && !error;

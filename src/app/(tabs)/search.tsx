@@ -15,19 +15,27 @@ import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Icon } from "../../components/ui/Icon";
 import { Screen } from "../../components/ui/Screen";
+import { Segmented, type SegmentOption } from "../../components/ui/Segmented";
 import { SearchResultItem } from "../../components/search/SearchResultItem";
 import { useSearch } from "../../features/search/useSearch";
 import { translationInfo, translationLabel } from "../../features/settings/settings";
 import { useSettings } from "../../features/settings/SettingsProvider";
 import { useTheme } from "../../theme/ThemeProvider";
-import type { SearchResult } from "../../types/quran";
+import type { SearchMode, SearchResult } from "../../types/quran";
 import { surahHref } from "../../utils/reference";
+
+const MODE_OPTIONS: Array<SegmentOption<SearchMode>> = [
+  { value: "all", label: "All" },
+  { value: "arabic", label: "Arabic" },
+  { value: "translation", label: "Translation" },
+];
 
 export default function SearchScreen() {
   const { colors } = useTheme();
   const { settings } = useSettings();
   const [query, setQuery] = useState("");
-  const search = useSearch(query, settings.translation);
+  const [mode, setMode] = useState<SearchMode>("all");
+  const search = useSearch(query, settings.translation, mode);
   const dataset = translationInfo(settings.translation);
   const datasetName = translationLabel(dataset);
   const trimmed = query.trim();
@@ -75,6 +83,12 @@ export default function SearchScreen() {
             </Pressable>
           ) : null}
         </View>
+        <Segmented
+          options={MODE_OPTIONS}
+          value={mode}
+          onChange={setMode}
+          style={styles.mode}
+        />
         {headerStatus ? (
           <View style={styles.statusRow}>
             {search.status === "loading" ? (
@@ -106,11 +120,12 @@ export default function SearchScreen() {
               <Card>
                 <AppText variant="heading">Search the whole Mushaf</AppText>
                 <AppText tone="muted" style={styles.introText}>
-                  Verses are matched in the Arabic source and in the selected
-                  translation, {datasetName}. Arabic matching ignores diacritics,
-                  vowel marks and Quranic annotation signs only in the search copy;
-                  the reader always displays the exact source string. Change the
-                  dataset in Settings to search another language.
+                  Verses are matched in the Arabic source, in the selected
+                  translation, {datasetName}, or in both — switch the filter above.
+                  Arabic matching ignores diacritics, vowel marks and Quranic
+                  annotation signs only in the search copy; the reader always
+                  displays the exact source string. Change the dataset in Settings
+                  to search another language.
                 </AppText>
                 <AppText variant="meta" tone="muted" style={styles.suggestLabel}>
                   Try
@@ -151,7 +166,7 @@ export default function SearchScreen() {
             <EmptyState
               icon="search-outline"
               title="No matches"
-              body={`Nothing in the Arabic text or the ${datasetName} translation matches “${trimmed}”. Try a shorter word, another dataset in Settings, or a different spelling.`}
+              body={`Nothing in ${mode === "arabic" ? "the Arabic text" : mode === "translation" ? `the ${datasetName} translation` : `the Arabic text or the ${datasetName} translation`} matches “${trimmed}”. Try a shorter word, another filter, another dataset in Settings, or a different spelling.`}
             />
           ) : (
             <View style={styles.center}>
@@ -183,6 +198,9 @@ const styles = StyleSheet.create({
     minHeight: 46,
     fontSize: 15,
     paddingVertical: 0,
+  },
+  mode: {
+    marginTop: 10,
   },
   statusRow: {
     flexDirection: "row",

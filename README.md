@@ -13,6 +13,10 @@ and the rest — inside a bundled SQLite database. Reading, search, translation
 switching, bookmarks, settings and every reference page work with no network
 connection. Only recitation audio and external links need the internet.
 
+Recitation offers the pinned default plus the website's full audited catalogue —
+70 editions from everyayah.com across Arabic Hafs, two Warsh readings and six
+translated recitations — streamed one ayah at a time.
+
 ## Requirements
 
 - Node.js 24 or newer (the data scripts use the built-in `node:sqlite` and
@@ -134,7 +138,7 @@ Everything the reader displays comes from the pinned runtime tree of
 | Runtime tree | `public/quran` (copied from the Mushafly web repository) |
 | Database | `assets/data/quran.db`, 33.20 MiB, SHA-256 `c340bb20…d4ae8fc9` |
 | Arabic font | Amiri Quran, `assets/fonts/AmiriQuran-Regular.ttf`, OFL |
-| Audio | Streamed from the same pinned commit on `raw.githubusercontent.com` |
+| Audio | Default streamed from the pinned commit on `raw.githubusercontent.com`; the other 70 audited editions streamed per ayah from `everyayah.com` |
 
 The full record, including input file count and known issues in the upstream
 annotation, is in [`data/source-lock.json`](data/source-lock.json).
@@ -151,6 +155,9 @@ MUSHAFLY_WEB_ROOT=/path/to/Mushafly npm run data:build
 # deliberate re-pin after reviewing a new source commit
 npm run data:build -- --update-lock
 npm run data:validate
+
+# copy the website's audited recitation catalogue into the app
+npm run reciters:sync
 ```
 
 The importer copies every Arabic and translation string byte for byte from the
@@ -185,6 +192,30 @@ picker in Settings groups them by language and is searchable by language,
 translator or edition: it shows the short edition name, translator and source,
 and the reader reloads in place without losing its position.
 
+## Recitations
+
+The picker in Settings offers the same catalogue as the website. The default is
+the pinned Saad Al-Ghamadi copy from `raw.githubusercontent.com`; every other
+entry streams one MP3 per ayah from everyayah.com:
+
+- **Arabic — Hafs:** matches the Arabic text on the page.
+- **Warsh reading:** two editions, labelled because the displayed text is Hafs.
+- **Translated recitations:** six editions in English, Urdu, Azerbaijani and
+  Bosnian, labelled with their language.
+
+The list is not hand-written. The website's `scripts/audit-reciters.mjs` checks
+every folder for all 6,236 ayah files; nine folders are excluded (five on
+request, four because files are missing) and recorded in the manifest. The app
+consumes that audited manifest through `npm run reciters:sync`, so a reciter is
+offered only when every verse file exists. Ayah `000` is the surah's Bismillah;
+when a folder ships no Bismillah files, the app uses that reciter's Al-Fatiha
+1:1 file instead of a missing clip.
+
+Changing reciter stops playback, so the next verse starts from the source you
+chose. The sheets, the reader's audio bar and the attribution in Settings name
+the active source; everyayah.com publishes no terms of its own, so those files
+are streamed and never copied into the build.
+
 ## Reader
 
 - Arabic text is set with a 2.5 em line box, measured from the bundled font's
@@ -192,11 +223,14 @@ and the reader reloads in place without losing its position.
   height it is given, so a tighter setting clips the tall pause signs and the
   tails of letters. Translations are drawn with the device's script font and no
   fixed line height, which protects every script the app ships.
-- The expand action in the reader toolbar enters fullscreen reading: the status
-  and navigation bars, the app header and the progress bar are hidden until the
-  contract button or the back gesture leaves fullscreen.
+- The Android navigation bar is hidden for the whole app, from the splash
+  screen onward, while the status bar (clock, WiFi, battery) stays visible on
+  every screen. The expand action in the reader toolbar enters focus mode,
+  which hides only the app header and the progress bar until the contract
+  button or the back gesture leaves it.
 
-Search matches the Arabic source and the selected translation dataset. Matching
+Search matches the Arabic source and the selected translation dataset, with the
+website's All / Arabic / Translation filter. Matching
 is diacritic-insensitive for Arabic and works in every bundled script, including
 Bengali, Urdu, Persian and Russian; it is case- and accent-insensitive for Latin
 text.
@@ -250,7 +284,9 @@ the interface.
 - Recitation audio is **streamed**, not bundled. Offline reading is complete;
   offline audio is not offered. Pressing play without a connection now shows an
 explicit message and a retry action instead of an endless spinner, and a stream
-that never loads fails after 12 seconds with the same kind of message.
+that never loads fails after 12 seconds with the same kind of message. The 70
+everyayah editions were audited for file presence by the website, not listened
+to here; a reciter whose host is down fails with the same retry surface.
 - Tajweed colour follows the annotation at word-span level where a rule begins
   inside a joined word. This is deliberate: character-level nesting disconnects
   Arabic letters on Android's new architecture.

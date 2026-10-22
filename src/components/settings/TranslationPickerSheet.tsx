@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useTheme } from "../../theme/ThemeProvider";
 import { arabicLineHeight } from "../../theme/typography";
@@ -25,7 +25,16 @@ export function TranslationPickerSheet({
 }) {
   const { colors, fonts } = useTheme();
   const [query, setQuery] = useState("");
+  const inputRef = useRef<ComponentRef<typeof TextInput>>(null);
   const active = translationInfo(value);
+
+  // The website focuses the search field whenever the chooser opens; the
+  // modal animation starts after mount, so the focus is deferred to match.
+  useEffect(() => {
+    if (!visible) return;
+    const timer = setTimeout(() => inputRef.current?.focus(), 250);
+    return () => clearTimeout(timer);
+  }, [visible]);
 
   const groups = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -53,6 +62,7 @@ export function TranslationPickerSheet({
       >
         <Icon name="search-outline" size={17} color={colors.muted} />
         <TextInput
+          ref={inputRef}
           value={query}
           onChangeText={setQuery}
           placeholder="Language, translator or edition"

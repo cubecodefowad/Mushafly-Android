@@ -2,7 +2,7 @@
   "expo": {
     "name": "Mushafly",
     "slug": "mushafly",
-    "version": "1.3.0",
+    "version": "1.3.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mushafly",
@@ -11,7 +11,7 @@
     "primaryColor": "#426b55",
     "android": {
       "package": "com.mushafly.android",
-      "versionCode": 5,
+      "versionCode": 6,
       "adaptiveIcon": {
         "backgroundColor": "#faf8f3",
         "foregroundImage": "./assets/images/adaptive-icon.png",

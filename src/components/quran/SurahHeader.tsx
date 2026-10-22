@@ -1,9 +1,9 @@
 import { Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "../../theme/ThemeProvider";
-import { arabicLineHeight } from "../../theme/typography";
 import { translationInfo } from "../../features/settings/settings";
 import type { ReaderSettings, Surah } from "../../types/quran";
 import { ArabicText } from "./ArabicText";
+import { MarkGlyph } from "./MarkGlyph";
 import { TranslationText } from "./TranslationText";
 import { AppText } from "../ui/AppText";
 import { IconButton } from "../ui/IconButton";
@@ -23,7 +23,7 @@ export function SurahHeader({
   playingBismillah: boolean;
   onJumpToSajdah: (verseNumber: number) => void;
 }) {
-  const { colors, fonts } = useTheme();
+  const { colors } = useTheme();
   const bismillah = surah.bismillah;
   const bismillahTranslation = bismillah?.translation ?? null;
   const translationIsRtl = translationInfo(settings.translation).direction === "rtl";
@@ -99,18 +99,7 @@ export function SurahHeader({
               hitSlop={4}
             >
               <Pill
-              icon={
-                <AppText
-                  style={{
-                    fontFamily: fonts.arabic,
-                    color: colors.accent,
-                    fontSize: 14,
-                    lineHeight: arabicLineHeight(14),
-                  }}
-                >
-                  {"\u06e9"}
-                </AppText>
-              }
+              icon={<MarkGlyph glyph="\u06E9" size={15} color={colors.accent} />}
             >
               Sajdah · verse {verseNumber}
             </Pill>

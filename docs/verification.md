@@ -11,6 +11,7 @@ npm run typecheck
 npm run data:validate
 npm test
 npm run reciters:sync   # optional; needs the website checkout
+npm run marks:build     # regenerates the sign outlines from the bundled font
 npx expo export --platform android
 ```
 
@@ -26,10 +27,11 @@ checkout present, all 6,348 rows are compared byte for byte against
 | --- | --- |
 | `npx tsc --noEmit` | pass, no errors |
 | `npm run data:validate` | pass — pinned hash, 114 surahs, 6,236 numbered verses, 112 Bismillah rows, 68 translation datasets / 424,272 rows decompressed and checked, 15 sajdah refs, 60,841 Tajweed ranges, 147 intentionally plain verses, 1,446-glyph font covers every displayed Arabic code point, 6,348 rows byte-compared with the source; database 33.20 MiB |
-| `npm test` | pass — 12 suites, 81 tests |
+| `npm test` | pass — 13 suites, 86 tests |
 | `npx expo export --platform android` | pass — Hermes bundle 4.8 MB, 33.20 MB database asset present in the export |
 | `npx expo-doctor` | pass — 20/20 checks after `expo install --fix` moved 11 SDK packages to their current patch releases |
-| `npx expo prebuild --platform android --no-install --clean` | pass — `styles.xml` carries `expoNavigationBarHidden=true`, so the navigation bar is hidden at activity creation, before the JS bundle loads |
+| `npm run marks:build` | pass — 14 vector outlines generated from Amiri Quran's 1000-unit em; every documented sign has a path and padded bounding box |
+| `npx expo prebuild --platform android --no-install --clean` | pass — `styles.xml` carries `expoNavigationBarHidden=true`, so the navigation bar is hidden at activity creation, before the JS bundle loads; the react-native-svg module is autolinked |
 | APK build (1.1.0) | pass in GitHub Actions (run [39474437023](https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39474437023), commit `244f5e7`, version 1.1.0): artifact `mushafly-apk`, 60 MB zip, release APK built with the generated debug keystore; every step including `npm run verify` succeeded |
 | APK build (1.1.1) | pass in GitHub Actions (run [39484332914](https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39484332914), commit `0090c64`, version 1.1.1 / versionCode 3): artifact `mushafly-apk`, 68 MB zip, release APK built with the generated debug keystore; every step including `npm run verify` succeeded |
 | APK build (1.3.0) | pass in GitHub Actions (run [39824862580](https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39824862580), commit `40908ed`, version 1.3.0 / versionCode 5, 22m 45s): artifact `mushafly-apk`, 68.4 MB zip, digest `sha256:11f75970…1247fbac`, release APK built with the generated debug keystore; every step including `npm run verify` succeeded |
@@ -64,6 +66,11 @@ Unit tests:
   offline/timeout messages always explain the failure.
 - `parseSettings` clamps sizes, rejects bad themes, translations and reciters,
   ignores unknown keys and falls back to defaults for malformed storage.
+- The generated sign outlines cover every glyph documented in `text-marks.ts`
+  and nothing else; each path is a real filled outline with a padded box, and
+  the derived SVG viewBox has four finite numbers with positive width and
+  height. The zero-advance pause marks U+06D6–U+06DC are explicitly checked,
+  because they are the signs that vanished as lone Text characters.
 - The recitation catalogue exposes the pinned default plus the 70 audited
   everyayah editions (71 total), has unique ids, builds zero-padded URLs, keeps
   the pinned URL for the default, uses a folder's own `NNN000` Bismillah when it
@@ -106,7 +113,8 @@ Integration tests:
   selected dataset in both English and Urdu, and that the Arabic-only and
 translation-only scopes exclude each other's matches.
 
-Not covered by automated tests: the SQLite copy-on-first-launch path, audio
+Not covered by automated tests: how the generated sign outlines look on a
+physical Android screen at different font scales, the SQLite copy-on-first-launch path, audio
 lifecycle on a real device, whether every everyayah folder actually serves its
 files to this app, gesture and scroll performance, safe areas and cutouts,
 Android process death, the visual result of the new Arabic line metrics, whether
@@ -134,6 +142,12 @@ need an emulator or phone.
 | No fullscreen mode; the navigation bar stayed visible | The reader had no immersive mode and never asked Android to hide the system bars | The reader toolbar gains a fullscreen action that hides the status and navigation bars, removes the app header and progress bar, and restores both bars when fullscreen is left or the screen closes | Code path in `surah/[number].tsx`; needs a device pass to confirm gesture navigation and cutout behaviour |
 | 1.1.1 hid the status bar as well, and the navigation bar only disappeared inside the reader | The reader toggled both bars itself and restored them on unmount, so every other screen showed the bar again | The navigation bar is hidden app-wide, starting from the native theme at activity creation and reasserted by the root layout; the status bar is never hidden. The reader's expand action is now focus mode and only removes the app header and progress bar | `app.json` runs `expo-navigation-bar` with `hidden: true`; `_layout.tsx` mounts `<NavigationBar hidden />`; `surah/[number].tsx` no longer touches the system bars; needs a device pass to confirm swipe-to-reveal and insets |
 | The “N verses are shown as plain text” note appeared twice, after the Bismillah and after the Tajweed colours | The note was rendered in `SurahHeader` and again in `TajweedLegend` | It is rendered once, above the colour chips, where it introduces the Tajweed colours | Component tree |
+
+## Tajweed reference signs in 1.3.1
+
+| Report | Cause found | Fix | Evidence |
+| --- | --- | --- | --- |
+| The Tajweed reference screen shows empty boxes where the Quranic signs should be | Eight of the eighteen documented signs (U+06D6–U+06DC, U+06DF, U+06E0, U+06E2) are combining marks with zero advance width in Amiri Quran. Android measures a lone mark in a `Text` as zero-width, so the run either draws nothing or is clipped; the screen also ignored the font-derived optical offsets the web key uses | The generator reads the bundled font with fontkit and emits each sign's own outline plus its padded ink box. `MarkGlyph` renders that outline with react-native-svg, flipping font coordinates for SVG and cropping the viewBox to the ink, so no text shaper is involved. The Tajweed screen and the sajdah pill use the component | `fontkit` reports advance 0 and `isMark: true` for the eight signs; `mark-glyphs.test.ts` asserts 14 outlines, finite geometry and every documented glyph; `npm run marks:build`, `tsc`, 86 tests, the Metro export and the CI APK build all pass |
 
 ## Website parity in 1.3.0
 
@@ -231,5 +245,8 @@ with the source commit, license and translation credits.
   stores it. It has no visible width and no Quranic meaning.
 - Device-level checks (startup time, scroll smoothness, memory, APK size,
   cutouts, audio interruptions) have not been performed.
+- The vector sign outlines are verified as geometry, not as pixels: no Android
+  screen was available to inspect their weight and optical centring at each
+  font scale.
 - The app has not been compared side by side with a printed Mushaf by a
   qualified reviewer.

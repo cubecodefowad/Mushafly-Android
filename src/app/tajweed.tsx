@@ -4,9 +4,9 @@ import { AppHeader } from "../components/ui/AppHeader";
 import { AppText } from "../components/ui/AppText";
 import { Card } from "../components/ui/Card";
 import { Icon } from "../components/ui/Icon";
+import { MarkGlyph } from "../components/quran/MarkGlyph";
 import { Screen } from "../components/ui/Screen";
 import { useTheme } from "../theme/ThemeProvider";
-import { arabicLineHeight } from "../theme/typography";
 import { tajweedColor } from "../theme/palette";
 import { TAJWEED_RULES } from "../features/quran/tajweed-rules";
 import {
@@ -17,7 +17,7 @@ import {
 import { surahHref } from "../utils/reference";
 
 export default function TajweedReferenceScreen() {
-  const { colors, fonts, scheme } = useTheme();
+  const { colors, scheme } = useTheme();
 
   return (
     <Screen>
@@ -91,16 +91,7 @@ export default function TajweedReferenceScreen() {
                   { borderColor: colors.border, backgroundColor: colors.paper },
                 ]}
               >
-                <AppText
-                  style={{
-                    fontFamily: fonts.arabic,
-                    fontSize: 26,
-                    lineHeight: arabicLineHeight(26),
-                    color: colors.ink,
-                  }}
-                >
-                  {mark.glyph}
-                </AppText>
+                <MarkGlyph glyph={mark.glyph} size={28} color={colors.ink} />
               </View>
               <View style={styles.ruleCopy}>
                 <AppText variant="label">
@@ -162,16 +153,7 @@ export default function TajweedReferenceScreen() {
                       { borderColor: colors.border, backgroundColor: colors.paper },
                     ]}
                   >
-                    <AppText
-                      style={{
-                        fontFamily: fonts.arabic,
-                        fontSize: 24,
-                        lineHeight: arabicLineHeight(24),
-                        color: colors.ink,
-                      }}
-                    >
-                      {part.glyph}
-                    </AppText>
+                    <MarkGlyph glyph={part.glyph} size={26} color={colors.ink} />
                   </View>
                 ))}
               </View>

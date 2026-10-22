@@ -65,6 +65,17 @@ export type TajweedRender = {
   appliedRules: string[];
 };
 
+/** One Quranic sign as a font outline, for react-native-svg. */
+export type MarkGlyphData = {
+  /** SVG path in font units; y increases upward. */
+  path: string;
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  unitsPerEm: number;
+};
+
 export type AudioReference = {
   file: string;
   url: string;

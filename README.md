@@ -65,15 +65,18 @@ what has not been verified.
 the data, types and tests, prebuilds the native project and builds a release APK
 on every push to `main` (or from **Actions → Android APK → Run workflow**).
 
-An APK for commit `40908ed` (version 1.3.0, versionCode 5) was built
+An APK for commit `55a5ed6` (version 1.3.1, versionCode 6) was built
 successfully:
 
-- Run: <https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39824862580>
-- Artifact: **mushafly-apk** (68.4 MB zip, containing `mushafly.apk`; SHA-256
-  `11f75970…1247fbac`), downloadable from the run page while the artifact is
-  retained (expires 2027-01-20).
+- Run: <https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39830633202>
+- Artifact: **mushafly-apk** (70.0 MB zip, containing `mushafly.apk`; SHA-256
+  `cae3f538…210e95b6`), downloadable from the run page while the artifact is
+  retained (expires 2027-01-20). It is larger than 1.3.0 because the native
+  react-native-svg module is now linked.
 
-(Earlier builds: 1.1.1 at run
+(Earlier builds: 1.3.0 at run
+<https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39824862580>,
+1.1.1 at run
 <https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39484332914>,
 1.1.0 at run
 <https://github.com/cubecodefowad/Mushafly-Android/actions/runs/39474437023>.)

@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ReaderAppearanceSheet } from "../../components/quran/ReaderAppearanceSheet";
+import { ReciterPickerSheet } from "../../components/settings/ReciterPickerSheet";
 import { TranslationPickerSheet } from "../../components/settings/TranslationPickerSheet";
 import { SurahFooter } from "../../components/quran/SurahFooter";
 import { SurahHeader } from "../../components/quran/SurahHeader";
@@ -63,6 +64,7 @@ export default function SurahReaderScreen() {
   const [selected, setSelected] = useState<Verse | null>(null);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [translationOpen, setTranslationOpen] = useState(false);
+  const [reciterOpen, setReciterOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const listRef = useRef<FlatList<Verse>>(null);
   const lastSaved = useRef(0);
@@ -448,12 +450,24 @@ export default function SurahReaderScreen() {
           setAppearanceOpen(false);
           setTranslationOpen(true);
         }}
+        onOpenReciter={() => {
+          setAppearanceOpen(false);
+          setReciterOpen(true);
+        }}
       />
       <TranslationPickerSheet
         visible={translationOpen}
         value={settings.translation}
         onClose={() => setTranslationOpen(false)}
         onChange={(translation) => update({ translation })}
+      />
+      <ReciterPickerSheet
+        visible={reciterOpen}
+        value={settings.reciter}
+        onClose={() => setReciterOpen(false)}
+        onChange={(reciter) => {
+          if (reciter !== settings.reciter) update({ reciter });
+        }}
       />
       <VerseActionsSheet
         visible={Boolean(selected)}

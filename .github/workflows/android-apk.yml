@@ -4,6 +4,10 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    # Documentation-only commits do not change the APK, so they do not spend a
+    # runner on rebuilding it.
+    paths-ignore:
+      - "**/*.md"
 
 permissions:
   contents: read

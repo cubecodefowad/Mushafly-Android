@@ -214,9 +214,10 @@ offered only when every verse file exists. Ayah `000` is the surah's Bismillah;
 when a folder ships no Bismillah files, the app uses that reciter's Al-Fatiha
 1:1 file instead of a missing clip.
 
-Changing reciter stops playback, so the next verse starts from the source you
-chose. The sheets, the reader's audio bar and the attribution in Settings name
-the active source; everyayah.com publishes no terms of its own, so those files
+The picker is available both in Settings and from the reader's appearance
+sheet, so the reciter can be changed without leaving the surah. Changing it
+stops playback, so the next verse starts from the source you chose. The sheets,
+the reader's audio bar and the attribution in Settings name the active source; everyayah.com publishes no terms of its own, so those files
 are streamed and never copied into the build.
 
 ## Reader

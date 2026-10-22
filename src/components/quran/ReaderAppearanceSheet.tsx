@@ -6,6 +6,7 @@ import {
   translationInfo,
   translationLabel,
 } from "../../features/settings/settings";
+import { reciterInfo } from "../../features/audio/reciters";
 import type { ThemePreference } from "../../types/quran";
 import { useTheme } from "../../theme/ThemeProvider";
 import { BottomSheet } from "../ui/BottomSheet";
@@ -25,14 +26,17 @@ export function ReaderAppearanceSheet({
   visible,
   onClose,
   onOpenTranslation,
+  onOpenReciter,
 }: {
   visible: boolean;
   onClose: () => void;
   onOpenTranslation: () => void;
+  onOpenReciter: () => void;
 }) {
   const { settings, update } = useSettings();
   const { colors } = useTheme();
   const dataset = translationInfo(settings.translation);
+  const reciter = reciterInfo(settings.reciter);
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Reading appearance">
@@ -142,6 +146,35 @@ export function ReaderAppearanceSheet({
       <AppText variant="caption" tone="muted" style={styles.footnote}>
         Changes are saved automatically. Arabic datasets are commentaries (tafsir),
         not verse translations.
+      </AppText>
+
+      <AppText variant="meta" tone="muted" style={styles.topGap}>
+        Recitation
+      </AppText>
+      <Pressable
+        onPress={onOpenReciter}
+        accessibilityRole="button"
+        accessibilityLabel={`Change reciter. Currently ${reciter.name}`}
+        style={({ pressed }) => [
+          styles.pickerRow,
+          {
+            borderColor: colors.border,
+            backgroundColor: pressed ? colors.surfaceMuted : colors.surface,
+          },
+        ]}
+      >
+        <View style={styles.pickerCopy}>
+          <AppText variant="label">{reciter.name}</AppText>
+          <AppText variant="caption" tone="muted" numberOfLines={1}>
+            {reciter.bitrate ? `${reciter.bitrate} · ` : ""}
+            {reciter.source}
+          </AppText>
+        </View>
+        <Icon name="chevron-forward" size={16} color={colors.muted} />
+      </Pressable>
+      <AppText variant="caption" tone="muted" style={styles.footnote}>
+        Recitation is streamed one ayah at a time. Changing it stops playback so
+        the next verse starts from the source you chose.
       </AppText>
     </BottomSheet>
   );
